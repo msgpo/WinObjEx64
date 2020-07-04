@@ -4,9 +4,9 @@
 *
 *  TITLE:       SUP.C
 *
-*  VERSION:     1.86
+*  VERSION:     1.87
 *
-*  DATE:        29 May 2020
+*  DATE:        27 June 2020
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -5898,21 +5898,25 @@ VOID supPHLFree(
     _In_ BOOLEAN fClose
 )
 {
-    PLIST_ENTRY Next, Head = ListHead;
+    PLIST_ENTRY Entry, NextEntry;
     PHL_ENTRY* Item;
 
-    if (!IsListEmpty(Head)) {
-        Next = Head->Flink;
-        while ((Next != NULL) && (Next != Head)) {
-            Item = CONTAINING_RECORD(Next, PHL_ENTRY, ListEntry);
-            Next = Next->Flink;
-            if (fClose) {
-                if (Item->ProcessHandle)
-                    NtClose(Item->ProcessHandle);
-            }
-            supHeapFree(Item);
+    if (IsListEmpty(ListHead))
+        return;
+
+    for (Entry = ListHead->Flink, NextEntry = Entry->Flink;
+        Entry != ListHead;
+        Entry = NextEntry, NextEntry = Entry->Flink)
+    {
+        Item = CONTAINING_RECORD(Entry, PHL_ENTRY, ListEntry);
+        RemoveEntryList(Entry);
+        if (fClose) {
+            if (Item->ProcessHandle)
+                NtClose(Item->ProcessHandle);
         }
+        supHeapFree(Item);
     }
+
 }
 
 /*
@@ -5939,8 +5943,6 @@ BOOL supPHLCreate(
     } List;
 
     List.ListRef = ProcessList;
-
-    InitializeListHead(ListHead);
 
     do {
 
@@ -6853,4 +6855,249 @@ VOID supReportAPIError(
 
     logAdd(WOBJ_LOG_ENTRY_ERROR,
         szBuffer);
+}
+
+/*
+* supIsFileImageSection
+*
+* Purpose:
+*
+* Return TRUE if section attributes include image and file flags.
+*
+*/
+BOOLEAN supIsFileImageSection(
+    _In_ ULONG AllocationAttributes)
+{
+    return ((AllocationAttributes & SEC_IMAGE) && (AllocationAttributes & SEC_FILE));
+}
+
+/*
+* supIsDriverShimmed
+*
+* Purpose:
+*
+* Return TRUE if driver shimmed by KSE.
+*
+*/
+BOOLEAN supIsDriverShimmed(
+    _In_ PVOID DriverBaseAddress)
+{
+    PLIST_ENTRY Entry, NextEntry, ListHead = &g_kdctx.KseEngineDump.ShimmedDriversDumpListHead;
+    KSE_SHIMMED_DRIVER* ShimmedDriver;
+
+
+    if (g_kdctx.KseEngineDump.Valid == FALSE)
+        return FALSE;
+
+    ASSERT_LIST_ENTRY_VALID_BOOLEAN(ListHead);
+
+    if (IsListEmpty(ListHead))
+        return FALSE;
+
+    for (Entry = ListHead->Flink, NextEntry = Entry->Flink;
+        Entry != ListHead;
+        Entry = NextEntry, NextEntry = Entry->Flink)
+    {
+        ShimmedDriver = CONTAINING_RECORD(Entry, KSE_SHIMMED_DRIVER, ListEntry);
+        if (DriverBaseAddress == ShimmedDriver->DriverBaseAddress)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+/*
+* supDestroyShimmedDriversList
+*
+* Purpose:
+*
+* Remove all items from shimmed drivers list and free memory.
+*
+*/
+VOID supDestroyShimmedDriversList(
+    _In_ PLIST_ENTRY ListHead)
+{
+    PLIST_ENTRY Entry, NextEntry;
+    KSE_SHIMMED_DRIVER* Item;
+
+    ASSERT_LIST_ENTRY_VALID(ListHead);
+
+    if (IsListEmpty(ListHead))
+        return;
+
+    for (Entry = ListHead->Flink, NextEntry = Entry->Flink;
+        Entry != ListHead;
+        Entry = NextEntry, NextEntry = Entry->Flink)
+    {
+        Item = CONTAINING_RECORD(Entry, KSE_SHIMMED_DRIVER, ListEntry);
+        RemoveEntryList(Entry);
+        supHeapFree(Item);
+    }
+}
+
+size_t supxEscStrlen(wchar_t* s)
+{
+    size_t  result = 2;
+    wchar_t* s0 = s;
+
+    while (*s)
+    {
+        if (*s == L'"')
+            ++result;
+        ++s;
+    }
+
+    return result + (s - s0);
+}
+
+wchar_t* supxEscStrcpy(wchar_t* dst, wchar_t* src)
+{
+    *(dst++) = L'"';
+
+    while ((*dst = *src) != L'\0')
+    {
+        if (*src == L'"')
+            *(++dst) = L'"';
+
+        ++src;
+        ++dst;
+    }
+
+    *(dst++) = L'"';
+    *dst = L'\0';
+
+    return dst;
+}
+
+/*
+* supxListViewExportCSV
+*
+* Purpose:
+*
+* Export listview entries into file in csv format.
+*
+*/
+BOOL supxListViewExportCSV(
+    _In_ HWND List,
+    _In_ PWCHAR FileName)
+{
+    HWND            hdr = ListView_GetHeader(List);
+    int             pass, i, c, col_count = Header_GetItemCount(hdr), icount = 1 + ListView_GetItemCount(List);
+    HDITEM          ih;
+    LVITEM          lvi;
+    PWCHAR          text, buffer0 = NULL, buffer = NULL;
+    BOOL            result = FALSE;
+    SIZE_T          total_lenght;
+    DWORD           iobytes;
+    HANDLE          f;
+
+    text = (PWCHAR)supVirtualAlloc(32768 * sizeof(WCHAR));
+    if (!text)
+        return FALSE;
+
+    RtlZeroMemory(&ih, sizeof(HDITEM));
+    RtlZeroMemory(&lvi, sizeof(LVITEM));
+
+    ih.pszText = lvi.pszText = text;
+    ih.cchTextMax = lvi.cchTextMax = 32767;
+
+    for (pass = 0; pass < 2; ++pass)
+    {
+        total_lenght = 0;
+
+        for (i = 0; i < icount; ++i)
+        {
+            for (c = 0; c < col_count; ++c)
+            {
+                text[0] = L'\0';
+                if (i == 0)
+                {
+                    ih.mask = HDI_TEXT | HDI_ORDER;
+                    ih.iOrder = c;
+                    Header_GetItem(hdr, c, &ih);
+                }
+                else
+                {
+                    lvi.mask = LVIF_TEXT;
+                    lvi.iItem = i - 1;
+                    lvi.iSubItem = c;
+                    ListView_GetItem(List, &lvi);
+                }
+                total_lenght += supxEscStrlen(text) + 1;
+
+                if (buffer)
+                {
+                    buffer = supxEscStrcpy(buffer, text);
+                    if (c != col_count - 1)
+                    {
+                        *(buffer++) = L',';
+                    }
+                    else
+                    {
+                        *(buffer++) = L'\r';
+                        *(buffer++) = L'\n';
+                    }
+                }
+            }
+            ++total_lenght;
+        }
+
+        if (buffer0 == NULL)
+        {
+            buffer0 = (PWCHAR)supVirtualAlloc((1 + total_lenght) * sizeof(WCHAR));
+            if (!buffer0)
+                break;
+        }
+        else
+        {
+            f = CreateFile(FileName, GENERIC_WRITE | SYNCHRONIZE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (f != INVALID_HANDLE_VALUE)
+            {
+                WriteFile(f, buffer0, (DWORD)(total_lenght * sizeof(WCHAR)), &iobytes, NULL);
+                CloseHandle(f);
+                result = TRUE;
+            }
+            supVirtualFree(buffer0);
+        }
+        buffer = buffer0;
+    }
+
+    supVirtualFree(text);
+    return result;
+}
+
+/*
+* supListViewExportToFile
+*
+* Purpose:
+*
+* Export listview contents to the specified file.
+*
+*/
+BOOL supListViewExportToFile(
+    _In_ LPWSTR FileName,
+    _In_ HWND WindowHandle,
+    _In_ HWND ListView
+)
+{
+    BOOL bResult = FALSE;
+    HCURSOR hSaveCursor, hHourGlass;
+    WCHAR szExportFileName[MAX_PATH + 1];
+
+    _strcpy(szExportFileName, FileName);
+    if (supSaveDialogExecute(WindowHandle,
+        (LPWSTR)&szExportFileName,
+        T_CSV_FILE_FILTER))
+    {
+        hHourGlass = LoadCursor(NULL, IDC_WAIT);
+        SetCapture(WindowHandle);
+        hSaveCursor = SetCursor(hHourGlass);
+
+        bResult = supxListViewExportCSV(ListView, szExportFileName);
+
+        SetCursor(hSaveCursor);
+        ReleaseCapture();
+    }
+
+    return bResult;
 }

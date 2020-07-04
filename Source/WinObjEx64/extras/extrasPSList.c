@@ -4,9 +4,9 @@
 *
 *  TITLE:       EXTRASPSLIST.C
 *
-*  VERSION:     1.85
+*  VERSION:     1.87
 *
-*  DATE:        13 Mar 2020
+*  DATE:        28 June 2020
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -987,6 +987,7 @@ DWORD WINAPI CreateProcessListProc(
     PVOID InfoBuffer = NULL;
     PSYSTEM_HANDLE_INFORMATION_EX SortedHandleList = NULL;
     PSID OurSid = NULL;
+    PWSTR lpErrorMsg;
 
     SCMDB ServicesList;
 
@@ -999,6 +1000,8 @@ DWORD WINAPI CreateProcessListProc(
 
     ServicesList.Entries = NULL;
     ServicesList.NumberOfEntries = 0;
+
+    InitializeListHead(&g_PsListHead);
 
     __try {
         dwWaitResult = WaitForSingleObject(g_PsListWait, INFINITE);
@@ -1015,12 +1018,8 @@ DWORD WINAPI CreateProcessListProc(
                 RtlDestroyHeap(g_PsListHeap);
                 g_PsListHeap = RtlCreateHeap(HEAP_GROWABLE, NULL, 0, 0, NULL, NULL);
                 if (g_PsListHeap == NULL) {
-
-                    MessageBox(PsDlgContext.hwndDlg,
-                        TEXT("Could not allocate heap for process enumeration"),
-                        NULL,
-                        MB_ICONERROR);
-
+                    lpErrorMsg = TEXT("Could not allocate heap for process enumeration!");
+                    SendMessage(PsDlgContext.StatusBar, SB_SETTEXT, 2, (LPARAM)lpErrorMsg);
                     __leave;
                 }
             }
@@ -1032,12 +1031,8 @@ DWORD WINAPI CreateProcessListProc(
             }
 
             if (!supCreateSCMSnapshot(ServiceEnumType, &ServicesList)) {
-                
-                MessageBox(PsDlgContext.hwndDlg,
-                    TEXT("Error building services list"), 
-                    NULL, 
-                    MB_ICONERROR);
-
+                lpErrorMsg = TEXT("Error building services list!");
+                SendMessage(PsDlgContext.StatusBar, SB_SETTEXT, 2, (LPARAM)lpErrorMsg);
                 __leave;
             }
 
@@ -1048,26 +1043,18 @@ DWORD WINAPI CreateProcessListProc(
 
             InfoBuffer = supGetSystemInfo(SystemProcessInformation, NULL);
             if (InfoBuffer == NULL) {
-
-                MessageBox(PsDlgContext.hwndDlg,
-                    TEXT("Error query process list"),
-                    NULL,
-                    MB_ICONERROR);
-
+                lpErrorMsg = TEXT("Error query process list!");
+                SendMessage(PsDlgContext.StatusBar, SB_SETTEXT, 2, (LPARAM)lpErrorMsg);
                 __leave;
             }
 
-            if (!supPHLCreate(&g_PsListHead, 
-                (PBYTE)InfoBuffer, 
-                &nProcesses, 
-                &nThreads)) 
+            if (!supPHLCreate(&g_PsListHead,
+                (PBYTE)InfoBuffer,
+                &nProcesses,
+                &nThreads))
             {
-
-                MessageBox(PsDlgContext.hwndDlg,
-                    TEXT("Error building handle list"),
-                    NULL,
-                    MB_ICONERROR);
-
+                lpErrorMsg = TEXT("Error building handle list!");
+                SendMessage(PsDlgContext.StatusBar, SB_SETTEXT, 2, (LPARAM)lpErrorMsg);
                 __leave;
             }
 
@@ -1335,6 +1322,7 @@ INT_PTR CALLBACK PsListDialogProc(
 )
 {
     INT dy;
+    UINT uCommandId;
     RECT crc;
     INT mark;
     HWND TreeListControl, FocusWindow;
@@ -1374,14 +1362,16 @@ INT_PTR CALLBACK PsListDialogProc(
 
     case WM_COMMAND:
 
-        switch (LOWORD(wParam)) {
+        uCommandId = GET_WM_COMMAND_ID(wParam, lParam);
+
+        switch (uCommandId) {
 
         case IDCANCEL:
             SendMessage(hwndDlg, WM_CLOSE, 0, 0);
             return TRUE;
         case ID_OBJECT_COPY:
         case ID_OBJECT_COPY + 1:
-            if (LOWORD(wParam) == ID_OBJECT_COPY) {
+            if (uCommandId == ID_OBJECT_COPY) {
                 supCopyTreeListSubItemValue(PsDlgContext.TreeList, 0);
             }
             else {

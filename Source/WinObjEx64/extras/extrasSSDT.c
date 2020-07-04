@@ -4,9 +4,9 @@
 *
 *  TITLE:       EXTRASSSDT.C
 *
-*  VERSION:     1.86
+*  VERSION:     1.87
 *
-*  DATE:        29 May 2020
+*  DATE:        28 June 2020
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -20,6 +20,8 @@
 #include "extrasSSDT.h"
 #include "ntos/ntldr.h"
 
+#define ID_SDTLIST_SAVE 40002
+
 SDT_TABLE KiServiceTable;
 SDT_TABLE W32pServiceTable;
 
@@ -29,6 +31,22 @@ VOID SdtListCreate(
     _In_ HWND hwndDlg,
     _In_ BOOL fRescan,
     _In_ EXTRASCONTEXT* pDlgContext);
+
+/*
+* SdtDlgUpdateStatusBar
+*
+* Purpose:
+*
+* Display given status in status bar.
+*
+*/
+VOID SdtDlgUpdateStatusBar(
+    _In_ HWND hwndStatusBar,
+    _In_ LPWSTR lpStatus)
+{
+    SendMessage(hwndStatusBar, SB_SETTEXT, 1, (LPARAM)lpStatus);
+
+}
 
 /*
 * SdtDlgCompareFunc
@@ -102,7 +120,7 @@ VOID SdtHandlePopupMenu(
 
     hMenu = CreatePopupMenu();
     if (hMenu) {
-        InsertMenu(hMenu, 0, MF_BYCOMMAND, ID_OBJECT_COPY, T_SAVETOFILE);
+        InsertMenu(hMenu, 0, MF_BYCOMMAND, ID_SDTLIST_SAVE, T_EXPORTTOFILE);
         InsertMenu(hMenu, 1, MF_BYCOMMAND, ID_VIEW_REFRESH, T_RESCAN);
         TrackPopupMenu(hMenu, TPM_RIGHTBUTTON | TPM_LEFTALIGN, pt1.x, pt1.y, 0, hwndDlg, NULL);
         DestroyMenu(hMenu);
@@ -126,74 +144,6 @@ VOID SdtFreeGlobals()
     if (W32pServiceTable.Allocated) {
         supHeapFree(W32pServiceTable.Table);
         W32pServiceTable.Allocated = FALSE;
-    }
-}
-
-/*
-* SdtSaveListToFile
-*
-* Purpose:
-*
-* Dump table to the selected file.
-*
-*/
-VOID SdtSaveListToFile(
-    _In_ HWND hwndDlg,
-    _In_ EXTRASCONTEXT* pDlgContext
-)
-{
-    WCHAR   ch;
-    INT	    row, subitem, numitems;
-    SIZE_T  sz, k, BufferSize = 0;
-    LPWSTR  pItem = NULL, pText = NULL;
-    HCURSOR hSaveCursor, hHourGlass;
-    WCHAR   szTempBuffer[MAX_PATH + 1];
-
-    RtlSecureZeroMemory(szTempBuffer, sizeof(szTempBuffer));
-
-    _strcpy(szTempBuffer, TEXT("List.txt"));
-    if (supSaveDialogExecute(hwndDlg, (LPWSTR)&szTempBuffer, TEXT("Text files\0*.txt\0\0"))) {
-
-        pText = (LPWSTR)supHeapAlloc(0x2000);
-        if (pText == NULL) return;
-
-        hHourGlass = LoadCursor(NULL, IDC_WAIT);
-
-        ch = (WCHAR)0xFEFF;
-        supWriteBufferToFile(szTempBuffer, &ch, sizeof(WCHAR), FALSE, FALSE);
-
-        SetCapture(hwndDlg);
-        hSaveCursor = SetCursor(hHourGlass);
-
-        numitems = ListView_GetItemCount(pDlgContext->ListView);
-        for (row = 0; row < numitems; row++) {
-
-            pText[0] = 0;
-            for (subitem = 0; subitem < pDlgContext->lvColumnCount; subitem++) {
-
-                sz = 0;
-                pItem = supGetItemText(pDlgContext->ListView, row, subitem, &sz);
-                if (pItem) {
-                    _strcat(pText, pItem);
-                    supHeapFree(pItem);
-                }
-                if (subitem == 1) {
-                    for (k = 100; k > sz / sizeof(WCHAR); k--) {
-                        _strcat(pText, TEXT(" "));
-                    }
-                }
-                else {
-                    _strcat(pText, TEXT("\t"));
-                }
-            }
-            _strcat(pText, L"\r\n");
-            BufferSize = _strlen(pText) * sizeof(WCHAR);
-            supWriteBufferToFile(szTempBuffer, pText, BufferSize, FALSE, TRUE);
-        }
-
-        SetCursor(hSaveCursor);
-        ReleaseCapture();
-        supHeapFree(pText);
     }
 }
 
@@ -340,16 +290,20 @@ INT_PTR CALLBACK SdtDialogProc(
 
     case WM_COMMAND:
 
-        switch (LOWORD(wParam)) {
+        switch (GET_WM_COMMAND_ID(wParam, lParam)) {
 
         case IDCANCEL:
             SendMessage(hwndDlg, WM_CLOSE, 0, 0);
             return TRUE;
 
-        case ID_OBJECT_COPY:
+        case ID_SDTLIST_SAVE:
             pDlgContext = (EXTRASCONTEXT*)GetProp(hwndDlg, T_DLGCONTEXT);
             if (pDlgContext) {
-                SdtSaveListToFile(hwndDlg, pDlgContext);
+
+                supListViewExportToFile(TEXT("Table.csv"),
+                    hwndDlg,
+                    pDlgContext->ListView);
+
             }
             return TRUE;
 
@@ -421,7 +375,7 @@ VOID SdtListOutputTable(
         SdtTableEntry->Limit,
         SdtTableEntry->Limit);
 
-    SetWindowText(Context->StatusBar, szBuffer);
+    SendMessage(Context->StatusBar, SB_SETTEXT, 0, (LPARAM)&szBuffer);
 
     iImage = ObManagerGetImageIndexByTypeIndex(ObjectTypeDevice);
 
@@ -1025,7 +979,7 @@ VOID SdtListReportEvent(
     _In_ LPWSTR ErrorString
 )
 {
-    WCHAR szBuffer[512];
+    WCHAR szBuffer[1024];
 
     RtlStringCchPrintfSecure(szBuffer,
         RTL_NUMBER_OF(szBuffer),
@@ -1522,7 +1476,7 @@ VOID SdtListCreate(
     ULONG returnStatus;
     EXTRASCALLBACK CallbackParam;
     PRTL_PROCESS_MODULES pModules = NULL;
-    LPWSTR lpErrorMsg = TEXT("Unknown error");
+    LPWSTR lpStatusMsg;
 
 #ifndef _DEBUG
     HWND hwndBanner;
@@ -1531,11 +1485,17 @@ VOID SdtListCreate(
         TEXT("Loading service table dump, please wait"));
 #endif
 
+    SdtDlgUpdateStatusBar(pDlgContext->StatusBar, TEXT("Initializing table view"));
+
+
     __try {
 
         pModules = (PRTL_PROCESS_MODULES)supGetSystemInfo(SystemModuleInformation, NULL);
         if (pModules == NULL) {
-            MessageBox(hwndDlg, TEXT("Could not allocate memory for kernel modules list"), NULL, MB_ICONERROR);
+
+            SdtDlgUpdateStatusBar(pDlgContext->StatusBar,
+                TEXT("Could not allocate memory for kernel modules list!"));
+
             __leave;
         }
 
@@ -1553,6 +1513,9 @@ VOID SdtListCreate(
             if (bSuccess) {
                 SdtListOutputTable(hwndDlg, pModules, &KiServiceTable);
             }
+            else {
+                SdtDlgUpdateStatusBar(pDlgContext->StatusBar, TEXT("Error dumping table"));
+            }
 
         }
         else if (pDlgContext->DialogMode == SST_Win32k) {
@@ -1568,8 +1531,10 @@ VOID SdtListCreate(
             bSuccess = SdtListCreateTableShadow(pModules, &returnStatus);
             if (bSuccess) {
 
-                if (returnStatus == ErrShadowApiSetNotFound)
-                    MessageBox(hwndDlg, T_ERRSHADOW_APISETTABLE_NOT_FOUND, PROGRAM_NAME, MB_ICONINFORMATION);
+                if (returnStatus == ErrShadowApiSetNotFound) {
+                    SdtDlgUpdateStatusBar(pDlgContext->StatusBar,
+                        T_ERRSHADOW_APISETTABLE_NOT_FOUND);
+                }
 
                 SdtListOutputTable(hwndDlg, pModules, &W32pServiceTable);
             }
@@ -1582,50 +1547,51 @@ VOID SdtListCreate(
                 switch (returnStatus) {
 
                 case ErrShadowWin32kNotFound:
-                    lpErrorMsg = T_ERRSHADOW_WIN32K_NOT_FOUND;
+                    lpStatusMsg = T_ERRSHADOW_WIN32K_NOT_FOUND;
                     break;
 
                 case ErrShadowMemAllocFail:
-                    lpErrorMsg = T_ERRSHADOW_MEMORY_NOT_ALLOCATED;
+                    lpStatusMsg = T_ERRSHADOW_MEMORY_NOT_ALLOCATED;
                     break;
 
                 case ErrShadowWin32uLoadFail:
-                    lpErrorMsg = T_ERRSHADOW_WIN32U_LOAD_FAILED;
+                    lpStatusMsg = T_ERRSHADOW_WIN32U_LOAD_FAILED;
                     break;
 
                 case ErrShadowWin32kLoadFail:
-                    lpErrorMsg = T_ERRSHADOW_WIN32K_LOAD_FAILED;
+                    lpStatusMsg = T_ERRSHADOW_WIN32K_LOAD_FAILED;
                     break;
 
                 case ErrShadowW32pServiceLimitNotFound:
-                    lpErrorMsg = T_ERRSHADOW_WIN32KLIMIT_NOT_FOUND;
+                    lpStatusMsg = T_ERRSHADOW_WIN32KLIMIT_NOT_FOUND;
                     break;
 
                 case ErrShadowWin32uMismatch:
-                    lpErrorMsg = T_ERRSHADOW_WIN32U_MISMATCH;
+                    lpStatusMsg = T_ERRSHADOW_WIN32U_MISMATCH;
                     break;
 
                 case ErrShadowW32pServiceTableNotFound:
-                    lpErrorMsg = T_ERRSHADOW_TABLE_NOT_FOUND;
+                    lpStatusMsg = T_ERRSHADOW_TABLE_NOT_FOUND;
                     break;
 
                 case ErrShadowApiSetSchemaMapNotFound:
-                    lpErrorMsg = T_ERRSHADOW_APISETMAP_NOT_FOUND;
+                    lpStatusMsg = T_ERRSHADOW_APISETMAP_NOT_FOUND;
                     break;
 
                 case ErrShadowApiSetSchemaVerUnknown:
-                    lpErrorMsg = T_ERRSHADOW_APISET_VER_UNKNOWN;
+                    lpStatusMsg = T_ERRSHADOW_APISET_VER_UNKNOWN;
                     break;
 
                 default:
+                    lpStatusMsg = TEXT("Unknown error");
                     break;
                 }
 
-                MessageBox(hwndDlg, lpErrorMsg, NULL, MB_ICONERROR);
+                SdtDlgUpdateStatusBar(pDlgContext->StatusBar, lpStatusMsg);
+            }
         }
-    }
 
-}
+    }
     __finally {
 
         if (AbnormalTermination())
@@ -1641,6 +1607,7 @@ VOID SdtListCreate(
     }
 
     if (bSuccess) {
+        SdtDlgUpdateStatusBar(pDlgContext->StatusBar, TEXT("Table read - OK"));
         CallbackParam.lParam = 0;
         CallbackParam.Value = pDlgContext->DialogMode;
         ListView_SortItemsEx(pDlgContext->ListView, &SdtDlgCompareFunc, (LPARAM)&CallbackParam);
@@ -1665,6 +1632,8 @@ VOID extrasCreateSSDTDialog(
     HWND        hwndDlg;
 
     EXTRASCONTEXT* pDlgContext;
+
+    INT SbParts[] = { 400, -1 };
 
     WCHAR szText[100];
 
@@ -1705,6 +1674,7 @@ VOID extrasCreateSSDTDialog(
     pDlgContext->hwndDlg = hwndDlg;
     g_WinObj.AuxDialogs[dlgIndex] = hwndDlg;
     pDlgContext->StatusBar = GetDlgItem(hwndDlg, ID_EXTRASLIST_STATUSBAR);
+    SendMessage(pDlgContext->StatusBar, SB_SETPARTS, 2, (LPARAM)&SbParts);
 
     _strcpy(szText, TEXT("Viewing "));
     if (Mode == SST_Ntos)

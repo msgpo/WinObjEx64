@@ -4,9 +4,9 @@
 *
 *  TITLE:       EXTRASCALLBACKS.C
 *
-*  VERSION:     1.86
+*  VERSION:     1.87
 *
-*  DATE:        29 May 2020
+*  DATE:        26 June 2020
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -602,13 +602,14 @@ OBEX_FINDCALLBACK_ROUTINE(FindCiCallbacks)
 
         case NT_WIN10_19H1:
         case NT_WIN10_19H2:
-        case NT_WIN10_20H1:
             Signature = SeCiCallbacksPattern_19H1;
             SignatureSize = sizeof(SeCiCallbacksPattern_19H1);
             InstructionMatchPattern = SeCiCallbacksMatchingPattern_19H1_20H2;
             InstructionMatchLength = 10; //mov
             InstructionExactMatchLength = RTL_NUMBER_OF(SeCiCallbacksMatchingPattern_19H1_20H2);
             break;
+        case NT_WIN10_20H1:
+        case NT_WIN10_20H2:
         default:
             Signature = SeCiCallbacksPattern_20H1;
             SignatureSize = sizeof(SeCiCallbacksPattern_20H1);
@@ -684,7 +685,7 @@ OBEX_FINDCALLBACK_ROUTINE(FindCiCallbacks)
 
     } while (FALSE);
 
-    if (!Result)
+    if (Result == 0)
         logAdd(WOBJ_LOG_ENTRY_WARNING, TEXT("Could not locate CiCallbacks"));
 
     return Result;
@@ -3621,12 +3622,14 @@ OBEX_QUERYCALLBACK_ROUTINE(QueryCallbackGeneric)
 *
 */
 VOID DisplayCallbacksList(
-    _In_ HWND hwndDlg,
-    _In_ HWND TreeList)
+    _In_ HWND TreeList,
+    _In_ HWND StatusBar)
 {
     NTSTATUS QueryStatus;
     ULONG i;
     PRTL_PROCESS_MODULES Modules = NULL;
+
+    PWSTR lpStatusMsg;
 
     WCHAR szText[200];
 
@@ -3634,12 +3637,14 @@ VOID DisplayCallbacksList(
 
         Modules = (PRTL_PROCESS_MODULES)supGetSystemInfo(SystemModuleInformation, NULL);
         if (Modules == NULL) {
-            MessageBox(hwndDlg, TEXT("Could not allocate memory for modules list."), NULL, MB_ICONERROR);
+            lpStatusMsg = TEXT("Could not allocate memory for modules list!");
+            SendMessage(StatusBar, SB_SETTEXT, 1, (LPARAM)lpStatusMsg);
             __leave;
         }
 
         if (g_kdctx.NtOsImageMap == NULL) {
-            MessageBox(hwndDlg, TEXT("Error, ntoskrnl image is not mapped."), NULL, MB_ICONERROR);
+            lpStatusMsg = TEXT("Error, ntoskrnl image is not mapped!");
+            SendMessage(StatusBar, SB_SETTEXT, 1, (LPARAM)lpStatusMsg);
             __leave;
         }
 
@@ -3670,11 +3675,15 @@ VOID DisplayCallbacksList(
 #endif
                 }
                 else {
-                    _strcpy(szText, TEXT("There is an error while query callback of type "));
-                    _strcat(szText, g_CallbacksDispatchTable[i].CallbackType);
-                    _strcat(szText, TEXT(", Code 0x"));
-                    ultohex(QueryStatus, _strend(szText));
-                    MessageBox(hwndDlg, szText, NULL, MB_ICONERROR);
+
+                    RtlStringCchPrintfSecure(szText,
+                        200,
+                        TEXT("Callback type %ws, error 0x%lX"),
+                        g_CallbacksDispatchTable[i].CallbackType,
+                        QueryStatus);
+
+                    logAdd(WOBJ_LOG_ENTRY_ERROR, szText);
+                    SendMessage(StatusBar, SB_SETTEXT, 1, (LPARAM)&szText);
                 }
             }
         }
@@ -3684,7 +3693,7 @@ VOID DisplayCallbacksList(
         //
         _strcpy(szText, TEXT("Total listed callbacks: "));
         ultostr(g_CallbacksCount, _strend(szText));
-        SetWindowText(GetDlgItem(hwndDlg, ID_EXTRASLIST_STATUSBAR), szText);
+        SendMessage(StatusBar, SB_SETTEXT, 0, (LPARAM)&szText);
 
     }
     __finally {
@@ -3813,7 +3822,7 @@ VOID CallbackDialogContentRefresh(
 
         g_CallbacksCount = 0;
 
-        DisplayCallbacksList(hwndDlg, pDlgContext->TreeList);
+        DisplayCallbacksList(pDlgContext->TreeList, pDlgContext->StatusBar);
 
     }
     __finally {
@@ -3872,7 +3881,7 @@ INT_PTR CALLBACK CallbacksDialogProc(
 
     case WM_COMMAND:
 
-        switch (LOWORD(wParam)) {
+        switch (GET_WM_COMMAND_ID(wParam, lParam)) {
         case IDCANCEL:
             SendMessage(hwndDlg, WM_CLOSE, 0, 0);
             return TRUE;
@@ -3923,6 +3932,8 @@ VOID extrasCreateCallbacksDialog(
     HDITEM      hdritem;
     RECT        rc;
 
+    INT SbParts[] = { 200, -1 };
+
     EXTRASCONTEXT  *pDlgContext;
 
     //
@@ -3947,6 +3958,7 @@ VOID extrasCreateCallbacksDialog(
     pDlgContext->hwndDlg = hwndDlg;
     g_WinObj.AuxDialogs[wobjCallbacksDlgId] = hwndDlg;
     pDlgContext->StatusBar = GetDlgItem(hwndDlg, ID_EXTRASLIST_STATUSBAR);
+    SendMessage(pDlgContext->StatusBar, SB_SETPARTS, 2, (LPARAM)&SbParts);
 
     extrasSetDlgIcon(hwndDlg);
     SetWindowText(hwndDlg, TEXT("System Callbacks"));

@@ -4,9 +4,9 @@
 *
 *  TITLE:       UI.H
 *
-*  VERSION:     1.86
+*  VERSION:     1.87
 *
-*  DATE:        17 May 2020
+*  DATE:        28 June 2020
 *
 *  Common header file for the user interface.
 *
@@ -56,7 +56,7 @@ typedef HWND(WINAPI *pfnHtmlHelpW)(
 
 #define PROGRAM_MAJOR_VERSION       1
 #define PROGRAM_MINOR_VERSION       8
-#define PROGRAM_REVISION_NUMBER     6
+#define PROGRAM_REVISION_NUMBER     7
 #define PROGRAM_BUILD_NUMBER        2006
 
 #ifdef _USE_OWN_DRIVER
@@ -65,7 +65,7 @@ typedef HWND(WINAPI *pfnHtmlHelpW)(
 #define PROGRAM_NAME            L"Windows Object Explorer 64-bit"
 #endif
 #define PROFRAM_NAME_AND_TITLE  L"Object Explorer for Windows 7/8/8.1/10"
-#define MAINWINDOWCLASSNAME     L"WinObjEx64Class"
+#define WINOBJEX64_WNDCLASS     L"WinObjEx64Class"
 #define PSLISTCLASSNAME         L"winobjex64_pslistdialogclass"
 
 #define T_PROPERTIES            L"Properties...\tEnter"
@@ -73,16 +73,19 @@ typedef HWND(WINAPI *pfnHtmlHelpW)(
 #define T_RUNASADMIN            L"R&un as Administrator"
 #define T_RUNASSYSTEM           L"R&un as LocalSystem"
 #define T_COPYTEXTROW           L"Copy Row Selection"
-#define T_COPYEPROCESS          L"Copy EPROCESS value"
-#define T_COPYOBJECT            L"Copy Object value"
+#define T_COPYEPROCESS          L"Copy EPROCESS Value"
+#define T_COPYOBJECT            L"Copy Object Value"
 #define T_COPYVALUE             L"Copy Value Field Text"
 #define T_COPYADDRESS           L"Copy Address Field Text"
 #define T_COPYADDINFO           L"Copy Additional Info Field Text"
-#define T_SAVETOFILE            L"Save list to File"
+#define T_EXPORTTOFILE          L"Export List to File"
 #define T_DUMPDRIVER            L"Dump Driver"
 #define T_VIEW_REFRESH          L"Refresh\tF5"
 #define T_RESCAN                L"Rescan"
+#define T_VIEW_PLUGINS          L"View Plugins"
 #define T_EMPTY                 L" "
+
+#define T_CSV_FILE_FILTER       TEXT("CSV Files\0*.csv\0\0")
 
 #define T_DRIVER_REQUIRED       TEXT("Support from helper driver is required for this feature.\r\n\r\n\
 If you see this message it can be caused by:\r\n\
@@ -103,6 +106,7 @@ typedef enum _WOBJ_DIALOGS_ID {
     wobjDriversDlgId,
     wobjCallbacksDlgId,
     wobjSLCacheDlgId,
+    wobjPluginViewId,
     wobjMaxDlgId
 } WOBJ_DIALOGS_ID;
 
@@ -138,6 +142,7 @@ extern HWND g_hwndObjectList;
 extern HIMAGELIST g_ListViewImages;
 extern HIMAGELIST g_ToolBarMenuImages;
 extern ATOM g_TreeListAtom;
+extern HTREEITEM g_SelectedTreeItem;
 
 //
 // Declared in propObjectDump.c

@@ -1,14 +1,14 @@
 /*******************************************************************************
 *
-*  (C) COPYRIGHT AUTHORS, 2019 - 2020
+*  (C) COPYRIGHT AUTHORS, 2020
 *
 *  TITLE:       GLOBAL.H
 *
-*  VERSION:     1.03
+*  VERSION:     1.00
 *
-*  DATE:        30 June 2020
+*  DATE:        01 July 2020
 *
-*  Common header file for the Windows Object Explorer Sonar plugin.
+*  Common header file for the Windows Object Explorer ImageScope plugin.
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -29,7 +29,7 @@
 #include <Windows.h>
 #include <windowsx.h>
 #include <strsafe.h>
-#include <CommCtrl.h>
+#include <commctrl.h>
 #include <Uxtheme.h>
 
 #pragma warning(push)
@@ -37,22 +37,27 @@
 #include <ntstatus.h>
 #pragma warning(pop)
 
-#pragma warning(disable: 6320) //Exception-filter expression is the constant EXCEPTION_EXECUTE_HANDLER
+#pragma warning(disable: 6258) // TerminateThread
+#pragma warning(disable: 6320) // Exception-filter expression is the constant EXCEPTION_EXECUTE_HANDLER
+#pragma warning(disable: 26812) // Prefer 'enum class' over 'enum'
+
 
 #include "ntos/ntos.h"
-#include "treelist/treelist.h"
 #include "minirtl/minirtl.h"
+#include "tabs/tabsctrl.h"
 #include "plugin_def.h"
-#include "ui.h"
 #include "resource.h"
-#include "ndis.h"
 #include "query.h"
+#include "ui.h"
 
 //declared in main.c
-extern SONARCONTEXT g_ctx;
+extern HINSTANCE g_ThisDLL;
+extern volatile BOOL g_PluginQuit;
+extern WINOBJEX_PLUGIN* g_Plugin;
 
 #ifdef _DEBUG
 #define kdDebugPrint(f, ...) DbgPrint(f, __VA_ARGS__)
 #else
 #define kdDebugPrint(f, ...) 
 #endif
+
