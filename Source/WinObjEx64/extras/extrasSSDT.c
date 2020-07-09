@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.87
 *
-*  DATE:        28 June 2020
+*  DATE:        04 July 2020
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -31,22 +31,6 @@ VOID SdtListCreate(
     _In_ HWND hwndDlg,
     _In_ BOOL fRescan,
     _In_ EXTRASCONTEXT* pDlgContext);
-
-/*
-* SdtDlgUpdateStatusBar
-*
-* Purpose:
-*
-* Display given status in status bar.
-*
-*/
-VOID SdtDlgUpdateStatusBar(
-    _In_ HWND hwndStatusBar,
-    _In_ LPWSTR lpStatus)
-{
-    SendMessage(hwndStatusBar, SB_SETTEXT, 1, (LPARAM)lpStatus);
-
-}
 
 /*
 * SdtDlgCompareFunc
@@ -300,9 +284,13 @@ INT_PTR CALLBACK SdtDialogProc(
             pDlgContext = (EXTRASCONTEXT*)GetProp(hwndDlg, T_DLGCONTEXT);
             if (pDlgContext) {
 
-                supListViewExportToFile(TEXT("Table.csv"),
+                if (supListViewExportToFile(
+                    TEXT("Table.csv"),
                     hwndDlg,
-                    pDlgContext->ListView);
+                    pDlgContext->ListView))
+                {
+                    supStatusBarSetText(pDlgContext->StatusBar, 1, T_LIST_EXPORT_SUCCESS);
+                }
 
             }
             return TRUE;
@@ -375,7 +363,7 @@ VOID SdtListOutputTable(
         SdtTableEntry->Limit,
         SdtTableEntry->Limit);
 
-    SendMessage(Context->StatusBar, SB_SETTEXT, 0, (LPARAM)&szBuffer);
+    supStatusBarSetText(Context->StatusBar, 0, (LPWSTR)&szBuffer);
 
     iImage = ObManagerGetImageIndexByTypeIndex(ObjectTypeDevice);
 
@@ -1485,7 +1473,7 @@ VOID SdtListCreate(
         TEXT("Loading service table dump, please wait"));
 #endif
 
-    SdtDlgUpdateStatusBar(pDlgContext->StatusBar, TEXT("Initializing table view"));
+    supStatusBarSetText(pDlgContext->StatusBar, 1, TEXT("Initializing table view"));
 
 
     __try {
@@ -1493,7 +1481,7 @@ VOID SdtListCreate(
         pModules = (PRTL_PROCESS_MODULES)supGetSystemInfo(SystemModuleInformation, NULL);
         if (pModules == NULL) {
 
-            SdtDlgUpdateStatusBar(pDlgContext->StatusBar,
+            supStatusBarSetText(pDlgContext->StatusBar, 1,
                 TEXT("Could not allocate memory for kernel modules list!"));
 
             __leave;
@@ -1514,7 +1502,7 @@ VOID SdtListCreate(
                 SdtListOutputTable(hwndDlg, pModules, &KiServiceTable);
             }
             else {
-                SdtDlgUpdateStatusBar(pDlgContext->StatusBar, TEXT("Error dumping table"));
+                supStatusBarSetText(pDlgContext->StatusBar, 1, TEXT("Error dumping table"));
             }
 
         }
@@ -1532,7 +1520,7 @@ VOID SdtListCreate(
             if (bSuccess) {
 
                 if (returnStatus == ErrShadowApiSetNotFound) {
-                    SdtDlgUpdateStatusBar(pDlgContext->StatusBar,
+                    supStatusBarSetText(pDlgContext->StatusBar, 1,
                         T_ERRSHADOW_APISETTABLE_NOT_FOUND);
                 }
 
@@ -1587,7 +1575,7 @@ VOID SdtListCreate(
                     break;
                 }
 
-                SdtDlgUpdateStatusBar(pDlgContext->StatusBar, lpStatusMsg);
+                supStatusBarSetText(pDlgContext->StatusBar, 1, lpStatusMsg);
             }
         }
 
@@ -1607,7 +1595,7 @@ VOID SdtListCreate(
     }
 
     if (bSuccess) {
-        SdtDlgUpdateStatusBar(pDlgContext->StatusBar, TEXT("Table read - OK"));
+        supStatusBarSetText(pDlgContext->StatusBar, 1, TEXT("Table read - OK"));
         CallbackParam.lParam = 0;
         CallbackParam.Value = pDlgContext->DialogMode;
         ListView_SortItemsEx(pDlgContext->ListView, &SdtDlgCompareFunc, (LPARAM)&CallbackParam);

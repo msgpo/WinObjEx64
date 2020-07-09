@@ -5,9 +5,9 @@
 *
 *  TITLE:       NTOS.H
 *
-*  VERSION:     1.150
+*  VERSION:     1.151
 *
-*  DATE:        30 June 2020
+*  DATE:        02 July 2020
 *
 *  Common header file for the ntos API functions and definitions.
 *
@@ -6143,12 +6143,14 @@ PushEntryList(
         return;                                                 \
 }
 
-#define ASSERT_LIST_ENTRY_VALID_BOOLEAN(ListEntry) {            \
+#define ASSERT_LIST_ENTRY_VALID_ERROR_X(ListEntry, X) {         \
     if (ListEntry == NULL)                                      \
-        return FALSE;                                           \
+        return X;                                               \
     if (ListEntry->Flink == NULL || ListEntry->Blink == NULL)   \
-        return FALSE;                                           \
+        return X;                                               \
 }
+
+#define ASSERT_LIST_ENTRY_VALID_BOOLEAN(ListEntry) ASSERT_LIST_ENTRY_VALID_ERROR_X(ListEntry, FALSE)
 
 #endif /* NTOS_ENABLE_LIST_ENTRY_MACRO */
 

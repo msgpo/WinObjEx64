@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.87
 *
-*  DATE:        01 July 2020
+*  DATE:        04 July 2020
 *
 *  Plugin manager.
 *
@@ -21,7 +21,7 @@
 #include "ui.h"
 
 LIST_ENTRY g_PluginsListHead;
-UINT g_PluginCount = 0;
+volatile UINT g_PluginCount = 0;
 
 /*
 * PmpReportInvalidPlugin
@@ -81,9 +81,16 @@ BOOL PmpIsValidPlugin(
 #pragma warning(pop)
 
                 dwSize = 0;
-                if (VerQueryValue(versionInfo, T_VERSION_TRANSLATION, (LPVOID*)&lpTranslate, (PUINT)&dwSize)) {
 
-                    RtlStringCchPrintfSecure(szBuffer,
+                if (VerQueryValue(
+                    versionInfo,
+                    T_VERSION_TRANSLATION,
+                    (LPVOID*)&lpTranslate,
+                    (PUINT)&dwSize))
+                {
+
+                    RtlStringCchPrintfSecure(
+                        szBuffer,
                         MAX_PATH,
                         FORMAT_VERSION_DESCRIPTION,
                         lpTranslate[0].wLanguage,
@@ -91,7 +98,13 @@ BOOL PmpIsValidPlugin(
 
                     lpFileDescription = NULL;
                     dwSize = 0;
-                    if (VerQueryValue(versionInfo, szBuffer, (LPVOID*)&lpFileDescription, (PUINT)&dwSize)) {
+
+                    if (VerQueryValue(
+                        versionInfo,
+                        szBuffer,
+                        (LPVOID*)&lpFileDescription,
+                        (PUINT)&dwSize))
+                    {
                         bResult = (_strcmp(lpFileDescription, WINOBJEX_PLUGIN_DESCRIPTION) == 0);
                     }
                 }
@@ -166,7 +179,7 @@ BOOL CALLBACK PmGuiInitCallback(
     _In_ HINSTANCE PluginInstance,
     _In_ WNDPROC WndProc,
     _Reserved_ PVOID Reserved
-    )
+)
 {
     ATOM classAtom;
     WNDCLASSEX  wincls;
@@ -181,8 +194,8 @@ BOOL CALLBACK PmGuiInitCallback(
         //
         // Register window class once.
         //
-        RtlStringCchPrintfSecure(szClassName, 
-            RTL_NUMBER_OF(szClassName), 
+        RtlStringCchPrintfSecure(szClassName,
+            RTL_NUMBER_OF(szClassName),
             TEXT("%wsWndClass"),
             PluginData->Name);
 
@@ -193,10 +206,10 @@ BOOL CALLBACK PmGuiInitCallback(
         wincls.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
         wincls.lpszClassName = szClassName;
 
-        wincls.hCursor = (HCURSOR)LoadImage(NULL, 
-            MAKEINTRESOURCE(OCR_SIZENS), 
-            IMAGE_CURSOR, 
-            0, 
+        wincls.hCursor = (HCURSOR)LoadImage(NULL,
+            MAKEINTRESOURCE(OCR_SIZENS),
+            IMAGE_CURSOR,
+            0,
             0,
             LR_SHARED);
 
@@ -484,13 +497,19 @@ VOID PmDestroy()
     WINOBJEX_PLUGIN_INTERNAL* PluginEntry;
 
     Head = &g_PluginsListHead;
+
+    ASSERT_LIST_ENTRY_VALID(Head);
+    if (IsListEmpty(Head))
+        return;
+
     Next = Head->Flink;
     while ((Next != NULL) && (Next != Head)) {
         PluginEntry = CONTAINING_RECORD(Next, WINOBJEX_PLUGIN_INTERNAL, ListEntry);
         Next = Next->Flink;
 
-        __try {           
-            PluginEntry->Plugin.StopPlugin();
+        __try {
+            if (PluginEntry->Plugin.StopPlugin)
+                PluginEntry->Plugin.StopPlugin();
         }
         __except (EXCEPTION_EXECUTE_HANDLER) {
             ;
@@ -515,6 +534,11 @@ WINOBJEX_PLUGIN_INTERNAL* PmpGetEntryById(
     WINOBJEX_PLUGIN_INTERNAL* PluginEntry;
 
     Head = &g_PluginsListHead;
+
+    ASSERT_LIST_ENTRY_VALID_ERROR_X(Head, NULL);
+    if (IsListEmpty(Head))
+        return NULL;
+
     Next = Head->Flink;
     while ((Next != NULL) && (Next != Head)) {
         PluginEntry = CONTAINING_RECORD(Next, WINOBJEX_PLUGIN_INTERNAL, ListEntry);
@@ -665,6 +689,10 @@ VOID PmProcessEntry(
         PluginEntry = PmpGetEntryById(Id);
         if (PluginEntry) {
 
+            if ((PluginEntry->Plugin.StartPlugin == NULL) ||
+                (PluginEntry->Plugin.StopPlugin == NULL))
+                return;
+
             if (!PluginEntry->Plugin.SupportMultipleInstances) {
                 if (PluginEntry->Plugin.State == PluginRunning) {
 
@@ -782,6 +810,32 @@ VOID PmProcessEntry(
 }
 
 /*
+* PmpIsSupportedObject
+*
+* Purpose:
+*
+* Return TRUE if the given object type is supported by plugin.
+*
+*/
+BOOLEAN PmpIsSupportedObject(
+    _In_ WINOBJEX_PLUGIN* Plugin,
+    _In_ UCHAR ObjectType
+)
+{
+    UCHAR i;
+
+    if (Plugin->SupportedObjectsIds[0] == ObjectTypeAnyType)
+        return TRUE;
+
+    for (i = 0; i < PLUGIN_MAX_SUPPORTED_OBJECT_ID; i++)
+        if (Plugin->SupportedObjectsIds[i] != ObjectTypeNone)
+            if (Plugin->SupportedObjectsIds[i] == ObjectType)
+                return TRUE;
+
+    return FALSE;
+}
+
+/*
 * PmBuildPluginPopupMenuByObjectType
 *
 * Purpose:
@@ -791,7 +845,7 @@ VOID PmProcessEntry(
 */
 VOID PmBuildPluginPopupMenuByObjectType(
     _In_ HMENU ContextMenu,
-    _In_ ULONG ObjectType)
+    _In_ UCHAR ObjectType)
 {
     BOOL bInitOk = FALSE;
     PLIST_ENTRY ptrHead, ptrNext;
@@ -803,7 +857,7 @@ VOID PmBuildPluginPopupMenuByObjectType(
     while ((ptrNext != NULL) && (ptrNext != ptrHead)) {
         pluginEntry = CONTAINING_RECORD(ptrNext, WINOBJEX_PLUGIN_INTERNAL, ListEntry);
         if (pluginEntry->Plugin.Type == ContextPlugin) {
-            if (pluginEntry->Plugin.SupportedObjectType == ObjectType) {
+            if (PmpIsSupportedObject(&pluginEntry->Plugin, ObjectType)) {
 
                 //
                 // Insert separator.
@@ -937,6 +991,37 @@ VOID PmpEnumerateEntries(
 }
 
 /*
+* PmpListSupportedObjectTypes
+*
+* Purpose:
+*
+* List plugin supported object types.
+*
+*/
+VOID PmpListSupportedObjectTypes(
+    _In_ HWND hwndCB,
+    _In_ PWINOBJEX_PLUGIN Plugin
+)
+{
+    UCHAR i;
+    LPWSTR lpObjectType;
+
+    if (Plugin->SupportedObjectsIds[0] == ObjectTypeAnyType) {
+        lpObjectType = TEXT("Any");
+        SendMessage(hwndCB, CB_ADDSTRING, (WPARAM)0, (LPARAM)lpObjectType);
+    }
+    else {
+
+        for (i = 0; i < PLUGIN_MAX_SUPPORTED_OBJECT_ID; i++)
+            if (Plugin->SupportedObjectsIds[i] != ObjectTypeNone) {
+                lpObjectType = ObManagerGetNameByIndex(Plugin->SupportedObjectsIds[i]);
+                SendMessage(hwndCB, CB_ADDSTRING, (WPARAM)0, (LPARAM)lpObjectType);
+            }
+
+    }
+}
+
+/*
 * PmpHandleNotify
 *
 * Purpose:
@@ -952,6 +1037,8 @@ VOID PmpHandleNotify(
     PWINOBJEX_PLUGIN_INTERNAL PluginData = NULL;
     LPWSTR lpType;
     LPNMLISTVIEW pListView = (LPNMLISTVIEW)lParam;
+    HWND hwndCB;
+    INT nCount;
 
     WCHAR szModuleName[MAX_PATH + 1];
 
@@ -974,8 +1061,11 @@ VOID PmpHandleNotify(
         return;
     }
 
+    hwndCB = GetDlgItem(hwndDlg, IDC_PLUGIN_OBJECTTYPE);
+    SendMessage(hwndCB, CB_RESETCONTENT, (WPARAM)0, (LPARAM)0);
+
     if (PluginData->Plugin.NeedAdmin)
-        lpType = TEXT("Yes"); 
+        lpType = TEXT("Yes");
     else
         lpType = TEXT("No");
 
@@ -1005,12 +1095,12 @@ VOID PmpHandleNotify(
     SetWindowText(GetDlgItem(hwndDlg, IDC_PLUGIN_DESC), PluginData->Plugin.Description);
 
     if (PluginData->Plugin.Type == ContextPlugin) {
-        lpType = ObManagerGetNameByIndex(PluginData->Plugin.SupportedObjectType);
+        PmpListSupportedObjectTypes(hwndCB, &PluginData->Plugin);
     }
-    else
-        lpType = T_NotAssigned;
 
-    SetWindowText(GetDlgItem(hwndDlg, IDC_PLUGIN_OBJECTTYPE), lpType);
+    nCount = (INT)SendMessage(hwndCB, CB_GETCOUNT, 0, 0);
+    EnableWindow(hwndCB, (nCount > 0) ? TRUE : FALSE);
+    SendMessage(hwndCB, CB_SETCURSEL, (WPARAM)0, (LPARAM)0);
 
     RtlSecureZeroMemory(szModuleName, sizeof(szModuleName));
     GetModuleFileName(PluginData->Module, (LPWSTR)&szModuleName, MAX_PATH);

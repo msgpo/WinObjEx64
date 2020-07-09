@@ -69,6 +69,10 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ModuleDefinitionFile>export.def</ModuleDefinitionFile>
     </Link>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -95,12 +99,17 @@
       <SetChecksum>true</SetChecksum>
       <AdditionalOptions>/NOCOFFGRPINFO %(AdditionalOptions)</AdditionalOptions>
     </Link>
+    <PostBuildEvent>
+      <Command>$(SolutionDir)Plugins\postbuild.cmd $(ProjectName) .\output\$(Platform)\$(Configuration)\bin\$(ProjectName).dll .\output\$(Platform)\$(Configuration)\bin\$(ProjectName).pdb</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Shared\minirtl\_strcmp.c" />
     <ClCompile Include="..\..\Shared\minirtl\_strcpy.c" />
     <ClCompile Include="..\..\Shared\minirtl\_strlen.c" />
+    <ClCompile Include="..\..\Shared\minirtl\_strncpy.c" />
     <ClCompile Include="..\..\Shared\tabs\tabsctrl.c" />
+    <ClCompile Include="..\..\Shared\treelist\treelist.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="query.c" />
     <ClCompile Include="ui.c" />
@@ -110,6 +119,7 @@
     <ClInclude Include="..\..\Shared\minirtl\rtltypes.h" />
     <ClInclude Include="..\..\Shared\ntos\ntos.h" />
     <ClInclude Include="..\..\Shared\tabs\tabsctrl.h" />
+    <ClInclude Include="..\..\Shared\treelist\treelist.h" />
     <ClInclude Include="..\plugin_def.h" />
     <ClInclude Include="global.h" />
     <ClInclude Include="query.h" />

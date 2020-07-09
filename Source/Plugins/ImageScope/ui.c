@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        30 June 2020
+*  DATE:        04 July 2020
 *
 *  WinObjEx64 ImageScope UI.
 *
@@ -19,23 +19,43 @@
 
 #include "global.h"
 
-INT_PTR CALLBACK VsInfoTabWndProc(
-    _In_ HWND hWnd,
-    _In_ UINT uMsg,
-    _In_ WPARAM wParam,
-    _In_ LPARAM lParam);
-
-INT_PTR CALLBACK StringsTabWndProc(
+INT_PTR CALLBACK TabsWndProc(
     _In_ HWND hWnd,
     _In_ UINT uMsg,
     _In_ WPARAM wParam,
     _In_ LPARAM lParam);
 
 IMS_TAB ImsTabs[] = {
-    { IDD_TABDLG_VSINFO, TabVSInfo, VsInfoTabWndProc, TEXT("VersionInfo") },
-    { IDD_TABDLG_STRINGS, TabStrings, StringsTabWndProc, TEXT("Strings") }
+    { IDD_TABDLG_SECTION, TabSection, TabsWndProc, TEXT("Section") },
+    { IDD_TABDLG_VSINFO, TabVSInfo, TabsWndProc, TEXT("VersionInfo") },
+    { IDD_TABDLG_STRINGS, TabStrings, TabsWndProc, TEXT("Strings") }
 };
 
+/*
+* StatusBarSetText
+*
+* Purpose:
+*
+* Display status in status bar part.
+*
+*/
+VOID StatusBarSetText(
+    _In_ HWND hwndStatusBar,
+    _In_ WPARAM partIndex,
+    _In_ LPWSTR lpText
+)
+{
+    SendMessage(hwndStatusBar, SB_SETTEXT, partIndex, (LPARAM)lpText);
+}
+
+/*
+* AddListViewColumn
+*
+* Purpose:
+*
+* Insert list view column.
+*
+*/
 INT AddListViewColumn(
     _In_ HWND ListViewHwnd,
     _In_ INT ColumnIndex,
@@ -61,6 +81,14 @@ INT AddListViewColumn(
     return ListView_InsertColumn(ListViewHwnd, ColumnIndex, &column);
 }
 
+/*
+* VsInfoStringsEnumCallback
+*
+* Purpose:
+*
+* VERSION_INFO enumeration callback.
+*
+*/
 BOOL CALLBACK VsInfoStringsEnumCallback(
     _In_ PWCHAR key,
     _In_ PWCHAR value,
@@ -98,6 +126,14 @@ BOOL CALLBACK VsInfoStringsEnumCallback(
     return TRUE;//continue enum
 }
 
+/*
+* VsInfoTabOnInit
+*
+* Purpose:
+*
+* Initialize VersionInfo tab dialog page.
+*
+*/
 VOID VsInfoTabOnInit(
     _In_ HWND hWndDlg,
     _In_ GUI_CONTEXT* Context
@@ -142,19 +178,266 @@ VOID VsInfoTabOnInit(
     PEImageEnumVersionFields(Context->SectionAddress, &VsInfoStringsEnumCallback, NULL, (LPVOID)hwndList);
 }
 
-INT_PTR CALLBACK VsInfoTabWndProc(
+/*
+* SectionTabOnInit
+*
+* Purpose:
+*
+* Initialize Section tab dialog page.
+*
+*/
+VOID SectionTabOnInit(
+    _In_ HWND hWndDlg,
+    _In_ GUI_CONTEXT* Context
+)
+{
+    RECT rc;
+    HWND hwndList;
+    HDITEM hdritem;
+
+    GetClientRect(hWndDlg, &rc);
+    hwndList = CreateWindowEx(WS_EX_STATICEDGE, WC_TREELIST, NULL,
+        WS_VISIBLE | WS_CHILD | WS_TABSTOP | TLSTYLE_COLAUTOEXPAND | TLSTYLE_LINKLINES,
+        0, 0,
+        rc.right, rc.bottom,
+        hWndDlg, NULL, NULL, NULL);
+
+    if (hwndList) {
+
+        RtlSecureZeroMemory(&hdritem, sizeof(hdritem));
+        hdritem.mask = HDI_FORMAT | HDI_TEXT | HDI_WIDTH;
+        hdritem.fmt = HDF_LEFT | HDF_BITMAP_ON_RIGHT | HDF_STRING;
+        hdritem.cxy = ScaleDPI(220, Context->CurrentDPI);
+        hdritem.pszText = TEXT("Field");
+        TreeList_InsertHeaderItem(hwndList, 0, &hdritem);
+        hdritem.cxy = ScaleDPI(130, Context->CurrentDPI);
+        hdritem.pszText = TEXT("Value");
+        TreeList_InsertHeaderItem(hwndList, 1, &hdritem);
+        hdritem.cxy = ScaleDPI(210, Context->CurrentDPI);
+        hdritem.pszText = TEXT("Additional Information");
+        TreeList_InsertHeaderItem(hwndList, 2, &hdritem);
+
+    }
+
+    Context->TreeList = hwndList;
+
+    //
+    // TBD FIXME
+    //
+}
+
+/*
+* StringsTabOnShow
+*
+* Purpose:
+*
+* Strings page WM_SHOWWINDOW handler.
+*
+*/
+#pragma warning(push)
+#pragma warning(disable: 6262)
+VOID StringsTabOnShow(
+    _In_ HWND hWndDlg,
+    _In_ GUI_CONTEXT* Context
+)
+{
+    INT nLength;
+    PVOID heapHandle = NULL;
+    HWND hwndList = GetDlgItem(hWndDlg, IDC_LIST);
+    PSTRING_PTR chain;
+    WCHAR szBuffer[UNICODE_STRING_MAX_CHARS];
+    LV_ITEM lvItem;
+
+    supSetWaitCursor(TRUE);
+    ShowWindow(hwndList, SW_HIDE);
+
+    __try {
+
+        heapHandle = HeapCreate(0, UNICODE_STRING_MAX_CHARS * sizeof(WCHAR), 0);
+        if (heapHandle == NULL)
+            __leave;
+
+        chain = EnumImageStringsA(
+            heapHandle,
+            Context->SectionAddress,
+            (ULONG)Context->SectionViewSize);
+
+        while (chain) {
+
+            nLength = MultiByteToWideChar(CP_ACP, 0,
+                (PCHAR)RtlOffsetToPointer(Context->SectionAddress, chain->ofpstr),
+                chain->length,
+                szBuffer,
+                UNICODE_STRING_MAX_CHARS);
+
+            if (nLength) {
+                
+                szBuffer[nLength] = 0;
+
+                lvItem.mask = LVIF_TEXT;
+                lvItem.pszText = szBuffer;
+                lvItem.iItem = INT_MAX;
+                ListView_InsertItem(hwndList, &lvItem);
+            }
+
+            chain = chain->pnext;
+        }
+
+        chain = EnumImageStringsW(
+            heapHandle,
+            Context->SectionAddress,
+            (ULONG)Context->SectionViewSize);
+
+        while (chain) {
+
+            _strncpy(szBuffer,
+                UNICODE_STRING_MAX_CHARS,
+                (PWCHAR)RtlOffsetToPointer(Context->SectionAddress, chain->ofpstr),
+                chain->length);
+
+            lvItem.mask = LVIF_TEXT;
+            lvItem.pszText = szBuffer;
+            lvItem.iItem = INT_MAX;
+            ListView_InsertItem(hwndList, &lvItem);
+
+            chain = chain->pnext;
+        }
+
+    }
+    __finally {
+        supSetWaitCursor(FALSE);
+        ShowWindow(hwndList, SW_SHOW);
+        if (heapHandle)
+            RtlDestroyHeap(heapHandle);
+    }
+}
+#pragma warning(pop)
+
+/*
+* StringsTabOnInit
+*
+* Purpose:
+*
+* Initialize Strings tab page dialog.
+*
+*/
+VOID StringsTabOnInit(
+    _In_ HWND hWndDlg,
+    _In_ GUI_CONTEXT* Context
+)
+{
+    HWND hwndList = GetDlgItem(hWndDlg, IDC_LIST);
+
+    if (hwndList) {
+
+        AddListViewColumn(hwndList,
+            0,
+            0,
+            0,
+            I_IMAGENONE,
+            LVCFMT_LEFT,
+            TEXT("Printable strings"),
+            MAX_PATH,
+            Context->CurrentDPI);
+
+        ListView_SetExtendedListViewStyle(hwndList, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
+    }
+}
+
+/*
+* TabOnInit
+*
+* Purpose:
+*
+* Tab window WM_INITDIALOG handler.
+*
+*/
+VOID TabOnInit(
+    _In_ HWND hWndDlg,
+    _In_ GUI_CONTEXT* Context
+)
+{
+    INT iSel;
+
+    iSel = TabCtrl_GetCurSel(Context->TabHeader->hwndTab);
+
+    switch (iSel) {
+
+    case TabSection:
+        SectionTabOnInit(hWndDlg, Context);
+        break;
+    case TabVSInfo:
+        VsInfoTabOnInit(hWndDlg, Context);
+        break;
+    case TabStrings:
+        StringsTabOnInit(hWndDlg, Context);
+        break;
+    default:
+        break;
+    }
+}
+
+/*
+* TabOnShow
+*
+* Purpose:
+*
+* Tab window WM_SHOWWINDOW handler.
+*
+*/
+INT_PTR TabOnShow(
+    _In_ HWND hWndDlg,
+    _In_ BOOL fShow
+)
+{
+    INT iSel;
+    GUI_CONTEXT* Context = GetProp(hWndDlg, T_IMS_PROP);
+
+    if (Context == NULL)
+        return 0;
+
+    iSel = TabCtrl_GetCurSel(Context->TabHeader->hwndTab);
+
+    switch (iSel) {
+
+    case TabStrings:
+        if (fShow)
+            StringsTabOnShow(hWndDlg, Context);
+        break;
+    default:
+        break;
+    }
+
+    return 1;
+}
+
+/*
+* TabsWndProc
+*
+* Purpose:
+*
+* Tab control window handler.
+*
+*/
+INT_PTR CALLBACK TabsWndProc(
     _In_ HWND hWnd,
     _In_ UINT uMsg,
     _In_ WPARAM wParam,
     _In_ LPARAM lParam
 )
 {
-    UNREFERENCED_PARAMETER(wParam);
-
     switch (uMsg) {
 
     case WM_INITDIALOG:
-        VsInfoTabOnInit(hWnd, (GUI_CONTEXT*)lParam);
+        SetProp(hWnd, T_IMS_PROP, (HANDLE)lParam);
+        TabOnInit(hWnd, (GUI_CONTEXT*)lParam);
+        break;
+
+    case WM_SHOWWINDOW:
+        return TabOnShow(hWnd, (wParam != 0));
+
+    case WM_DESTROY:
+        RemoveProp(hWnd, T_IMS_PROP);
         break;
 
     default:
@@ -164,77 +447,71 @@ INT_PTR CALLBACK VsInfoTabWndProc(
     return 0;
 }
 
-INT_PTR CALLBACK StringsTabWndProc(
-    _In_ HWND hWnd,
-    _In_ UINT uMsg,
-    _In_ WPARAM wParam,
-    _In_ LPARAM lParam
-)
-{
-    UNREFERENCED_PARAMETER(hWnd);
-    UNREFERENCED_PARAMETER(wParam);
-    UNREFERENCED_PARAMETER(lParam);
-
-    switch (uMsg) {
-
-    case WM_INITDIALOG:
-        break;
-
-    default:
-        break;
-    }
-
-    return 0;
-}
-
+/*
+* OnTabResize
+*
+* Purpose:
+*
+* Tab window WM_RESIZE handler.
+*
+*/
 VOID CALLBACK OnTabResize(
     _In_ TABHDR* TabHeader
 )
 {
-    RECT r;
+    RECT hwndRect;
     INT iSel;
-    HWND hwndList;
+    HWND hwndList = 0;
+    GUI_CONTEXT* Context;
 
     iSel = TabCtrl_GetCurSel(TabHeader->hwndTab);
+    GetClientRect(TabHeader->hwndDisplay, &hwndRect);
 
     switch (iSel) {
+
+    case TabSection:
+        Context = (GUI_CONTEXT*)GetProp(TabHeader->hwndDisplay, T_IMS_PROP);
+        if (Context) {
+            hwndList = Context->TreeList;
+        }
+        break;
 
     case TabVSInfo:
     case TabStrings:
         hwndList = GetDlgItem(TabHeader->hwndDisplay, IDC_LIST);
-
-        GetClientRect(TabHeader->hwndDisplay, &r);
-
-        SetWindowPos(hwndList,
-            0,
-            0,
-            0,
-            r.right,
-            r.bottom,
-            SWP_NOOWNERZORDER);
-
         break;
 
     default:
-        break;
+        return;
     }
+
+    if (hwndList) SetWindowPos(hwndList,
+        0,
+        0,
+        0,
+        hwndRect.right,
+        hwndRect.bottom,
+        SWP_NOOWNERZORDER);
 }
 
+/*
+* OnTabSelChange
+*
+* Purpose:
+*
+* Tab window selection change callback.
+*
+*/
 VOID CALLBACK OnTabSelChange(
-    _In_ TABHDR* TabHeader
+    _In_ TABHDR* TabHeader,
+    _In_ INT SelectedTab
 )
 {
-    INT iSel;
-
-    //get currently selected page
-    iSel = TabCtrl_GetCurSel(TabHeader->hwndTab);
-    if (iSel < 0)
-        return;
+    UNREFERENCED_PARAMETER(SelectedTab);
 
     //destroy previous window
     if (TabHeader->hwndDisplay != NULL)
         DestroyWindow(TabHeader->hwndDisplay);
-
 }
 
 /*
@@ -354,6 +631,14 @@ LRESULT CALLBACK MainWindowProc(
     return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
 
+/*
+* RunUI
+*
+* Purpose:
+*
+* Create main window, run message loop.
+*
+*/
 BOOL RunUI(
     _In_ GUI_CONTEXT* Context
 )
@@ -368,7 +653,7 @@ BOOL RunUI(
     WCHAR szClassName[100];
 
     icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-    icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_BAR_CLASSES | ICC_TAB_CLASSES;
+    icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES | ICC_BAR_CLASSES | ICC_TAB_CLASSES;
     InitCommonControlsEx(&icex);
 
 #pragma warning(push)
@@ -457,8 +742,8 @@ BOOL RunUI(
         g_ThisDLL,
         Context->MainWindow,
         NULL,
-        OnTabSelChange,
-        OnTabResize,
+        (TABSELCHANGECALLBACK)&OnTabSelChange,
+        (TABRESIZECALLBACK)&OnTabResize,
         (TABCALLBACK_ALLOCMEM)&supHeapAlloc,
         (TABCALLBACK_FREEMEM)&supHeapFree);
 

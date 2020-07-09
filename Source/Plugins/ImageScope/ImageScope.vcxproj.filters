@@ -22,6 +22,9 @@
     <Filter Include="tabs">
       <UniqueIdentifier>{47476539-9197-402f-8e71-0bd5fcb07914}</UniqueIdentifier>
     </Filter>
+    <Filter Include="treelist">
+      <UniqueIdentifier>{fbb5d080-c089-4398-bc97-6a35b013bcb7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c">
@@ -43,6 +46,12 @@
       <Filter>minirtl</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Shared\minirtl\_strcpy.c">
+      <Filter>minirtl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Shared\treelist\treelist.c">
+      <Filter>treelist</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Shared\minirtl\_strncpy.c">
       <Filter>minirtl</Filter>
     </ClCompile>
   </ItemGroup>
@@ -73,6 +82,9 @@
     </ClInclude>
     <ClInclude Include="..\..\Shared\tabs\tabsctrl.h">
       <Filter>tabs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Shared\treelist\treelist.h">
+      <Filter>treelist</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -107,7 +107,7 @@ VOID TabOnSelChanged(
     }
 
     if (hdr->OnSelChange != NULL)
-        hdr->OnSelChange(hdr);
+        hdr->OnSelChange(hdr, nCurrentTab);
 
     tabEntry = TabGetItem(hdr, nCurrentTab);
     if (tabEntry == NULL)
@@ -219,8 +219,8 @@ PTABHDR TabCreateControl(
     _In_ HINSTANCE hInstance,
     _In_ HWND hParentWnd,
     _In_opt_ HIMAGELIST hImageList,
-    _In_ TABCALLBACK OnSelChangeTab,
-    _In_ TABCALLBACK OnResizeTab,
+    _In_ TABSELCHANGECALLBACK OnSelChangeTab,
+    _In_ TABRESIZECALLBACK OnResizeTab,
     _In_ TABCALLBACK_ALLOCMEM MemAlloc,
     _In_ TABCALLBACK_FREEMEM MemFree
 )

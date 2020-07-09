@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        29 June 2020
+*  DATE:        04 July 2020
 *
 *  ImageScope main logic.
 *
@@ -19,6 +19,14 @@
 
 #include "global.h"
 
+/*
+* supHeapAlloc
+*
+* Purpose:
+*
+* RtlAllocateHeap wrapper.
+*
+*/
 PVOID supHeapAlloc(
     _In_ SIZE_T Size
 )
@@ -26,11 +34,35 @@ PVOID supHeapAlloc(
     return RtlAllocateHeap(NtCurrentPeb()->ProcessHeap, HEAP_ZERO_MEMORY, Size);
 }
 
+/*
+* supHeapFree
+*
+* Purpose:
+*
+* RtlFreeHeap wrapper.
+*
+*/
 BOOL supHeapFree(
     _In_ PVOID Memory
 )
 {
     return RtlFreeHeap(NtCurrentPeb()->ProcessHeap, 0, Memory);
+}
+
+/*
+* supSetWaitCursor
+*
+* Purpose:
+*
+* Sets cursor state.
+*
+*/
+VOID supSetWaitCursor(
+    _In_ BOOL fSet
+)
+{
+    ShowCursor(fSet);
+    SetCursor(LoadCursor(NULL, fSet ? IDC_WAIT : IDC_ARROW));
 }
 
 ULONG_PTR FORCEINLINE ALIGN_UP_32(
@@ -113,6 +145,14 @@ BOOL PEImageEnumStringFileInfo(
     return TRUE;
 }
 
+/*
+* PEImageEnumVersionFields
+*
+* Purpose:
+*
+* Enumerate version info fields in the given module.
+*
+*/
 VS_FIXEDFILEINFO* PEImageEnumVersionFields(
     _In_ HMODULE module,
     _In_ PEnumStringInfoCallback scallback,
@@ -127,48 +167,60 @@ VS_FIXEDFILEINFO* PEImageEnumVersionFields(
     NTSTATUS status;
     SIZE_T datasz = 0;
 
-    do {
-        if (!scallback)
-            break;
+    if (!scallback)
+        return NULL;
+
+    __try {
 
         ids[0] = (ULONG_PTR)RT_VERSION;                     //type
         ids[1] = 1;                                         //id
         ids[2] = MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL); //lang
 
-        status = LdrResSearchResource(module, (ULONG_PTR*)&ids, 3, 0,
-            (LPVOID*)&rptr, (ULONG_PTR*)&datasz, NULL, NULL);
+        status = LdrResSearchResource(
+            module,
+            (ULONG_PTR*)&ids,
+            3,
+            0,
+            (LPVOID*)&rptr,
+            (ULONG_PTR*)&datasz,
+            NULL,
+            NULL);
 
-        if (!NT_SUCCESS(status)) {
-            SetLastError(RtlNtStatusToDosError(status));
-            break;
-        }
+        if (NT_SUCCESS(status)) {
+            // root structure
+            hdr = (PIMGVSVERSIONINFO)rptr;
+            vlimit = (ULONG_PTR)hdr + hdr->vshdr.wLength;
 
-        // root structure
-        hdr = (PIMGVSVERSIONINFO)rptr;
-        vlimit = (ULONG_PTR)hdr + hdr->vshdr.wLength;
+            if (hdr->vshdr.wValueLength)
+                vinfo = (VS_FIXEDFILEINFO*)((ULONG_PTR)hdr + sizeof(IMGVSVERSIONINFO));
 
-        if (hdr->vshdr.wValueLength)
-            vinfo = (VS_FIXEDFILEINFO*)((ULONG_PTR)hdr + sizeof(IMGVSVERSIONINFO));
+            for (
+                // first child structure
+                hdr = (PIMGVSVERSIONINFO)ALIGN_UP_32((ULONG_PTR)hdr + hdr->vshdr.wValueLength + sizeof(IMGVSVERSIONINFO));
+                (ULONG_PTR)hdr < vlimit;
+                hdr = (PIMGVSVERSIONINFO)ALIGN_UP_32((ULONG_PTR)hdr + hdr->vshdr.wLength))
+            {
 
-        for (
-            // first child structure
-            hdr = (PIMGVSVERSIONINFO)ALIGN_UP_32((ULONG_PTR)hdr + hdr->vshdr.wValueLength + sizeof(IMGVSVERSIONINFO));
-            (ULONG_PTR)hdr < vlimit;
-            hdr = (PIMGVSVERSIONINFO)ALIGN_UP_32((ULONG_PTR)hdr + hdr->vshdr.wLength))
-        {
-
-            if ((_strcmp(hdr->wIdString, L"StringFileInfo") == 0) && scallback)
-                if (!PEImageEnumStringFileInfo((PIMGSTRINGTABLE)hdr, scallback, cbparam))
-                    break;
-
-            if (vcallback) {
-                if ((_strcmp(hdr->wIdString, L"VarFileInfo") == 0))
-                    if (!PEImageEnumVarFileInfo((PIMGVSTRING)hdr, vcallback, cbparam))
+                if (_strcmp(hdr->wIdString, L"StringFileInfo") == 0)
+                    if (!PEImageEnumStringFileInfo((PIMGSTRINGTABLE)hdr, scallback, cbparam))
                         break;
-            }
-        }
 
-    } while (FALSE);
+                if (vcallback) {
+                    if ((_strcmp(hdr->wIdString, L"VarFileInfo") == 0))
+                        if (!PEImageEnumVarFileInfo((PIMGVSTRING)hdr, vcallback, cbparam))
+                            break;
+                }
+            }
+
+        }
+        else {
+            SetLastError(RtlNtStatusToDosError(status));
+        }
+    }
+    __finally {
+        if (AbnormalTermination())
+            return NULL;
+    }
 
     return vinfo;
 }
@@ -264,4 +316,149 @@ NTSTATUS OpenAndMapSection(
     }
 
     return ntStatus;
+}
+
+/*
+* EnumImageStringsW
+*
+* Purpose:
+*
+* Enumerate printable unicode strings in the given buffer.
+*
+*/
+PSTRING_PTR EnumImageStringsW(
+    _In_ PVOID HeapHandle,
+    _In_ PWCHAR Buffer,
+    _In_ ULONG Size
+)
+{
+    ULONG           p = 0, p0, strsz;
+    WCHAR            c;
+    PSTRING_PTR     newptr, ptr0 = NULL, head = NULL;
+
+    while (Size > 0)
+    {
+        c = Buffer[p];
+        p0 = p;
+        ++p;
+        Size -= sizeof(WCHAR);
+
+        if (((c >= L'A') && (c <= L'Z')) ||
+            ((c >= L'a') && (c <= L'z')) ||
+            ((c >= L'0') && (c <= L'9')) ||
+            (c == L'(') || (c == L'<') || (c == L'\"') || (c == L'.') ||
+            (c == L'%') || (c == L'{') || (c == L'\\') || (c == L'@'))
+        {
+            while (Size > 0)
+            {
+                c = Buffer[p];
+
+                if (!(((c >= 0x20) && (c <= 0x7f)) ||
+                    (c == L'\r') ||
+                    (c == L'\n') ||
+                    (c == L'\t')))
+                    break;
+
+                if ((p - p0) >= 255)
+                    break;
+
+                ++p;
+                Size -= sizeof(WCHAR);
+            }
+
+            strsz = p - p0;
+
+            if (strsz > 2)
+            {
+                newptr = RtlAllocateHeap(HeapHandle, HEAP_ZERO_MEMORY, sizeof(STRING_PTR));
+                if (newptr) {
+                    newptr->length = strsz;
+                    newptr->pnext = NULL;
+                    newptr->ofpstr = p0 * sizeof(WCHAR);
+
+                    if (ptr0 != NULL)
+                        ptr0->pnext = newptr;
+                    else
+                        head = newptr;
+
+                    ptr0 = newptr;
+                }
+            }
+        }
+    }
+
+    return head;
+}
+
+/*
+* EnumImageStringsA
+*
+* Purpose:
+*
+* Enumerate printable ansi strings in the given buffer.
+*
+*/
+PSTRING_PTR EnumImageStringsA(
+    _In_ PVOID HeapHandle,
+    _In_ PCHAR Buffer,
+    _In_ ULONG Size
+)
+{
+    ULONG           p = 0, p0, strsz;
+    UCHAR            c;
+    PSTRING_PTR     newptr, ptr0 = NULL, head = NULL;
+
+    while (Size > 0)
+    {
+        c = Buffer[p];
+        p0 = p;
+        ++p;
+        --Size;
+
+        if (((c >= 'A') && (c <= 'Z')) ||
+            ((c >= 'a') && (c <= 'z')) ||
+            ((c >= '0') && (c <= '9')) ||
+            (c == '(') || (c == '<') || (c == '\"') || (c == '.') ||
+            (c == '%') || (c == '{') || (c == '\\') || (c == '@'))
+
+        {
+            while (Size > 0)
+            {
+                c = Buffer[p];
+
+                if (!(((c >= 0x20) && (c <= 0x7f)) ||
+                    (c == '\r') ||
+                    (c == '\n') ||
+                    (c == '\t')))
+                    break;
+
+                if ((p - p0) >= 255)
+                    break;
+
+                ++p;
+                --Size;
+            }
+
+            strsz = p - p0;
+
+            if (strsz > 2)
+            {
+                newptr = RtlAllocateHeap(HeapHandle, HEAP_ZERO_MEMORY, sizeof(STRING_PTR));
+                if (newptr) {
+                    newptr->length = strsz;
+                    newptr->pnext = NULL;
+                    newptr->ofpstr = p0;
+
+                    if (ptr0 != NULL)
+                        ptr0->pnext = newptr;
+                    else
+                        head = newptr;
+
+                    ptr0 = newptr;
+                }
+            }
+        }
+    }
+
+    return head;
 }

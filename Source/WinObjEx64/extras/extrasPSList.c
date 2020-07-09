@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.87
 *
-*  DATE:        28 June 2020
+*  DATE:        04 July 2020
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -934,7 +934,8 @@ DWORD WINAPI CreateThreadListProc(
             else {
                 _strcpy(szBuffer, TEXT("All queries for threads information are succeeded"));
             }
-            SendMessage(PsDlgContext.StatusBar, SB_SETTEXT, 2, (LPARAM)&szBuffer);
+
+            supStatusBarSetText(PsDlgContext.StatusBar, 2, (LPWSTR)&szBuffer);
 
             ListView_SortItemsEx(
                 PsDlgContext.ListView,
@@ -1019,7 +1020,7 @@ DWORD WINAPI CreateProcessListProc(
                 g_PsListHeap = RtlCreateHeap(HEAP_GROWABLE, NULL, 0, 0, NULL, NULL);
                 if (g_PsListHeap == NULL) {
                     lpErrorMsg = TEXT("Could not allocate heap for process enumeration!");
-                    SendMessage(PsDlgContext.StatusBar, SB_SETTEXT, 2, (LPARAM)lpErrorMsg);
+                    supStatusBarSetText(PsDlgContext.StatusBar, 2, lpErrorMsg);
                     __leave;
                 }
             }
@@ -1032,7 +1033,7 @@ DWORD WINAPI CreateProcessListProc(
 
             if (!supCreateSCMSnapshot(ServiceEnumType, &ServicesList)) {
                 lpErrorMsg = TEXT("Error building services list!");
-                SendMessage(PsDlgContext.StatusBar, SB_SETTEXT, 2, (LPARAM)lpErrorMsg);
+                supStatusBarSetText(PsDlgContext.StatusBar, 2, lpErrorMsg);
                 __leave;
             }
 
@@ -1044,7 +1045,7 @@ DWORD WINAPI CreateProcessListProc(
             InfoBuffer = supGetSystemInfo(SystemProcessInformation, NULL);
             if (InfoBuffer == NULL) {
                 lpErrorMsg = TEXT("Error query process list!");
-                SendMessage(PsDlgContext.StatusBar, SB_SETTEXT, 2, (LPARAM)lpErrorMsg);
+                supStatusBarSetText(PsDlgContext.StatusBar, 2, lpErrorMsg);
                 __leave;
             }
 
@@ -1054,7 +1055,7 @@ DWORD WINAPI CreateProcessListProc(
                 &nThreads))
             {
                 lpErrorMsg = TEXT("Error building handle list!");
-                SendMessage(PsDlgContext.StatusBar, SB_SETTEXT, 2, (LPARAM)lpErrorMsg);
+                supStatusBarSetText(PsDlgContext.StatusBar, 2, lpErrorMsg);
                 __leave;
             }
 
@@ -1063,11 +1064,11 @@ DWORD WINAPI CreateProcessListProc(
             //
             _strcpy(szBuffer, TEXT("Processes: "));
             ultostr(nProcesses, _strend(szBuffer));
-            SendMessage(PsDlgContext.StatusBar, SB_SETTEXT, 0, (LPARAM)&szBuffer);
+            supStatusBarSetText(PsDlgContext.StatusBar, 0, (LPWSTR)&szBuffer);
 
             _strcpy(szBuffer, TEXT("Threads: "));
             ultostr(nThreads, _strend(szBuffer));
-            SendMessage(PsDlgContext.StatusBar, SB_SETTEXT, 1, (LPARAM)&szBuffer);
+            supStatusBarSetText(PsDlgContext.StatusBar, 1, (LPWSTR)&szBuffer);
 
             SortedHandleList = supHandlesCreateFilteredAndSortedList(GetCurrentProcessId(), FALSE);
 
@@ -1496,7 +1497,7 @@ VOID extrasCreatePsListDialog(
         MAKEINTRESOURCE(OCR_SIZENS), IMAGE_CURSOR, 0, 0, LR_SHARED);
     wincls.hIcon = (HICON)LoadImage(g_WinObj.hInstance,
         MAKEINTRESOURCE(IDI_ICON_MAIN), IMAGE_ICON, 0, 0, LR_SHARED);
-    wincls.lpszClassName = PSLISTCLASSNAME;
+    wincls.lpszClassName = WINOBJEX64_PSLISTCLASS;
 
     RegisterClassEx(&wincls);
 
@@ -1512,7 +1513,7 @@ VOID extrasCreatePsListDialog(
         return;
 
     if (g_kdctx.IsFullAdmin == FALSE) {
-        SetWindowText(PsDlgContext.hwndDlg, TEXT("Processes (Non elevated mode, not all information can be queried)"));
+        SetWindowText(PsDlgContext.hwndDlg, TEXT("Processes (Non elevated mode, some information maybe unavailable)"));
     }
 
     g_WinObj.AuxDialogs[wobjPsListDlgId] = PsDlgContext.hwndDlg;

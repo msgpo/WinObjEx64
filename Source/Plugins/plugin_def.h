@@ -148,8 +148,8 @@ typedef enum _WINOBJEX_PLUGIN_STATE {
 
 typedef enum _WINOBJEX_PLUGIN_TYPE {
     DefaultPlugin = 0, // General purpose plugin (shown in main menu under "Plugins")
-    ContextPlugin = 1, // Object type specific plugin (shown in popup menu for specified object type)
-    InvalidPlugin
+    ContextPlugin = 1, // Object type specific plugin (shown in popup menu for specified object types)
+    InvalidPluginType
 } WINOBJEX_PLUGIN_TYPE;
 
 typedef void(CALLBACK* pfnStateChangeCallback)(
@@ -232,18 +232,22 @@ typedef VOID(CALLBACK* pfnGuiShutdownCallback)(
 #define ObjectTypeDmaAdapter 55
 #define ObjectTypeDmaDomain 56
 #define ObjectTypeUnknown 57
+#define ObjectTypeAnyType 0xfe
+#define ObjectTypeNone 0xff
+
+#define PLUGIN_MAX_SUPPORTED_OBJECT_ID 0xff
 
 typedef struct _WINOBJEX_PLUGIN {
     BOOLEAN NeedAdmin;
     BOOLEAN NeedDriver;
     BOOLEAN SupportWine;
     BOOLEAN SupportMultipleInstances;
-    ULONG SupportedObjectType; // Ignored if plugin Type is DefaultPlugin
     WINOBJEX_PLUGIN_TYPE Type;
     WINOBJEX_PLUGIN_STATE State;
     WORD MajorVersion;
     WORD MinorVersion;
     ULONG RequiredPluginSystemVersion;
+    UCHAR SupportedObjectsIds[PLUGIN_MAX_SUPPORTED_OBJECT_ID]; // Ignored if plugin Type is DefaultPlugin
     WCHAR Name[MAX_PLUGIN_NAME + 1];
     WCHAR Authors[MAX_AUTHORS_NAME + 1];
     WCHAR Description[MAX_PLUGIN_DESCRIPTION + 1];

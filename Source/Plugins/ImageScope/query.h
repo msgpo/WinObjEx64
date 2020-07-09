@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        30 June 2020
+*  DATE:        04 July 2020
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -59,12 +59,17 @@ typedef struct _IMGVSTRING {
     WCHAR       szKey[1];
 } IMGVSTRING, * PIMGVSTRING;
 
+typedef struct _STRING_PTR {
+    ULONG               ofpstr;
+    ULONG               length;
+    struct _STRING_PTR* pnext;
+} STRING_PTR, * PSTRING_PTR;
+
 PVOID supHeapAlloc(
     _In_ SIZE_T Size);
 
 BOOL supHeapFree(
     _In_ PVOID Memory);
-
 
 VS_FIXEDFILEINFO* PEImageEnumVersionFields(
     _In_ HMODULE module,
@@ -77,3 +82,16 @@ NTSTATUS OpenAndMapSection(
     _Out_ SIZE_T* ViewSize,
     _In_ LPWSTR RootDirectoryName,
     _In_ LPWSTR ObjectName);
+
+PSTRING_PTR EnumImageStringsW(
+    _In_ PVOID HeapHandle,
+    _In_ PWCHAR Buffer,
+    _In_ ULONG Size);
+
+PSTRING_PTR EnumImageStringsA(
+    _In_ PVOID HeapHandle,
+    _In_ PCHAR Buffer,
+    _In_ ULONG Size);
+
+VOID supSetWaitCursor(
+    _In_ BOOL fSet);

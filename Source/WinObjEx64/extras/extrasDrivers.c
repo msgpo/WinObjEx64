@@ -43,7 +43,7 @@ VOID DrvUpdateStatusBar(
 
     _strcpy(szBuffer, TEXT("Total: "));
     ultostr(ListView_GetItemCount(DrvDlgContext.ListView), _strend(szBuffer));
-    SendMessage(DrvDlgContext.StatusBar, SB_SETTEXT, 0, (LPARAM)&szBuffer);
+    supStatusBarSetText(DrvDlgContext.StatusBar, 0, (LPWSTR)&szBuffer);
 
     if (iItem >= 0) {
 
@@ -54,7 +54,7 @@ VOID DrvUpdateStatusBar(
             szBuffer,
             MAX_PATH);
 
-        SendMessage(DrvDlgContext.StatusBar, SB_SETTEXT, 1, (LPARAM)&szBuffer);
+        supStatusBarSetText(DrvDlgContext.StatusBar, 1, (LPWSTR)&szBuffer);
     }
 }
 
@@ -227,7 +227,7 @@ VOID DrvDumpDriver(
             else
                 _strcat(szBuffer, TEXT("partially successful"));
 
-            SendMessage(DrvDlgContext.StatusBar, SB_SETTEXT, 1, (LPARAM)&szBuffer);
+            supStatusBarSetText(DrvDlgContext.StatusBar, 1, (LPWSTR)&szBuffer);
         }
 
     } while (FALSE);
@@ -501,9 +501,13 @@ INT_PTR CALLBACK DriversDialogProc(
             break;
         case ID_DRVLIST_SAVE:
 
-            supListViewExportToFile(TEXT("Drivers.csv"),
+            if (supListViewExportToFile(
+                TEXT("Drivers.csv"),
                 hwndDlg,
-                DrvDlgContext.ListView);
+                DrvDlgContext.ListView))
+            {
+                supStatusBarSetText(DrvDlgContext.StatusBar, 1, T_LIST_EXPORT_SUCCESS);
+            }
             break;
 
         case ID_DRVLIST_PROP:

@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.87
 *
-*  DATE:        26 June 2020
+*  DATE:        04 July 2020
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -3638,13 +3638,13 @@ VOID DisplayCallbacksList(
         Modules = (PRTL_PROCESS_MODULES)supGetSystemInfo(SystemModuleInformation, NULL);
         if (Modules == NULL) {
             lpStatusMsg = TEXT("Could not allocate memory for modules list!");
-            SendMessage(StatusBar, SB_SETTEXT, 1, (LPARAM)lpStatusMsg);
+            supStatusBarSetText(StatusBar, 1, lpStatusMsg);
             __leave;
         }
 
         if (g_kdctx.NtOsImageMap == NULL) {
             lpStatusMsg = TEXT("Error, ntoskrnl image is not mapped!");
-            SendMessage(StatusBar, SB_SETTEXT, 1, (LPARAM)lpStatusMsg);
+            supStatusBarSetText(StatusBar, 1, lpStatusMsg);
             __leave;
         }
 
@@ -3683,7 +3683,7 @@ VOID DisplayCallbacksList(
                         QueryStatus);
 
                     logAdd(WOBJ_LOG_ENTRY_ERROR, szText);
-                    SendMessage(StatusBar, SB_SETTEXT, 1, (LPARAM)&szText);
+                    supStatusBarSetText(StatusBar, 1, (LPWSTR)&szText);
                 }
             }
         }
@@ -3693,7 +3693,7 @@ VOID DisplayCallbacksList(
         //
         _strcpy(szText, TEXT("Total listed callbacks: "));
         ultostr(g_CallbacksCount, _strend(szText));
-        SendMessage(StatusBar, SB_SETTEXT, 0, (LPARAM)&szText);
+        supStatusBarSetText(StatusBar, 0, (LPWSTR)&szText);
 
     }
     __finally {

@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        30 June 2020
+*  DATE:        04 July 2020
 *
 *  WinObjEx64 ImageScope plugin.
 *
@@ -72,10 +72,8 @@ VOID PmpCopyObjectData(
 
     }
     else {
-        if (Dest->ObjectDirectory) {
-            supHeapFree(Dest->ObjectDirectory);
-            Dest->ObjectDirectory = NULL;
-        }
+        supHeapFree(Dest->ObjectDirectory);
+        Dest->ObjectDirectory = NULL;
     }
 
 }
@@ -332,7 +330,16 @@ BOOLEAN CALLBACK PluginInit(
         // Set plugin type.
         //
         PluginData->Type = ContextPlugin;
-        PluginData->SupportedObjectType = ObjectTypeSection;
+
+        //
+        // Set supported object type(s).
+        //
+        RtlFillMemory(
+            PluginData->SupportedObjectsIds, 
+            sizeof(PluginData->SupportedObjectsIds), 
+            ObjectTypeNone);
+
+        PluginData->SupportedObjectsIds[0] = ObjectTypeSection;
 
         g_Plugin = PluginData;
 

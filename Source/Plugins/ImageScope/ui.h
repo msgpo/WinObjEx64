@@ -27,6 +27,7 @@
 #define ScaleDPI(Value, CurrentDPI) MulDiv(Value, CurrentDPI, DefaultSystemDpi)
 
 #define T_PLUGIN_NAME TEXT("ImageScope")
+#define T_IMS_PROP TEXT("ImsProp")
 
 #define IMAGESCOPE_WNDTITLE T_PLUGIN_NAME
 
@@ -34,6 +35,7 @@ typedef struct _GUI_CONTEXT {
     INT CurrentDPI;
     HWND MainWindow;
     HWND StatusBar;
+    HWND TreeList;
     HANDLE WorkerThread;
     PVOID SectionAddress;
     SIZE_T SectionViewSize;
@@ -49,8 +51,9 @@ typedef struct _GUI_CONTEXT {
 #define IDC_TAB 8086
 
 typedef enum _IMS_TAB_ID {
-    TabVSInfo = 0,
-    TabStrings = 1,
+    TabSection = 0,
+    TabVSInfo = 1,
+    TabStrings = 2,
     TabMax
 } IMS_TAB_ID;
 

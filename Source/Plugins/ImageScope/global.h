@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        01 July 2020
+*  DATE:        04 July 2020
 *
 *  Common header file for the Windows Object Explorer ImageScope plugin.
 *
@@ -43,6 +43,7 @@
 
 
 #include "ntos/ntos.h"
+#include "treelist/treelist.h"
 #include "minirtl/minirtl.h"
 #include "tabs/tabsctrl.h"
 #include "plugin_def.h"

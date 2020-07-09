@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.87
 *
-*  DATE:        01 July 2020
+*  DATE:        04 July 2020
 *
 *  Common header file for the plugin manager.
 *
@@ -40,7 +40,10 @@
 //
 // VERSION_INFO "FileDescription" value used for validating plugin.
 //
-#define WINOBJEX_PLUGIN_DESCRIPTION TEXT("WinObjEx64 Plugin")
+// Plugins prior to 1.87 had "WinObjEx64 Plugin" description field.
+// Make a new one to distinguish them because changes in plugin system are too complex.
+//
+#define WINOBJEX_PLUGIN_DESCRIPTION TEXT("WinObjEx64 Plugin V1.1")
 
 typedef BOOL(CALLBACK* pfnReadSystemMemoryEx)(
     _In_ ULONG_PTR Address,
@@ -155,8 +158,8 @@ typedef enum _WINOBJEX_PLUGIN_STATE {
 
 typedef enum _WINOBJEX_PLUGIN_TYPE {
     DefaultPlugin = 0, // General purpose plugin (shown in main menu under "Plugins")
-    ContextPlugin = 1, // Object type specific plugin (shown in popup menu for specified object type)
-    InvalidPlugin
+    ContextPlugin = 1, // Object type specific plugin (shown in popup menu for specified object types)
+    InvalidPluginType
 } WINOBJEX_PLUGIN_TYPE;
 
 typedef void(CALLBACK* pfnStateChangeCallback)(
@@ -177,17 +180,19 @@ typedef VOID(CALLBACK* pfnGuiShutdownCallback)(
     _Reserved_ PVOID Reserved
     );
 
+#define PLUGIN_MAX_SUPPORTED_OBJECT_ID 0xff
+
 typedef struct _WINOBJEX_PLUGIN {
     BOOLEAN NeedAdmin;
     BOOLEAN NeedDriver;
     BOOLEAN SupportWine;
     BOOLEAN SupportMultipleInstances;
-    ULONG SupportedObjectType; // Ignored if plugin Type is DefaultPlugin
     WINOBJEX_PLUGIN_TYPE Type;
     WINOBJEX_PLUGIN_STATE State;
     WORD MajorVersion;
     WORD MinorVersion;
     ULONG RequiredPluginSystemVersion;
+    UCHAR SupportedObjectsIds[PLUGIN_MAX_SUPPORTED_OBJECT_ID]; // Ignored if plugin Type is DefaultPlugin
     WCHAR Name[MAX_PLUGIN_NAME+1];
     WCHAR Authors[MAX_AUTHORS_NAME+1];
     WCHAR Description[MAX_PLUGIN_DESCRIPTION+1];
@@ -218,7 +223,7 @@ VOID PmProcessEntry(
 
 VOID PmBuildPluginPopupMenuByObjectType(
     _In_ HMENU ContextMenu,
-    _In_ ULONG ObjectType);
+    _In_ UCHAR ObjectType);
 
 VOID PmViewPlugins(
     _In_ HWND ParentWindow);

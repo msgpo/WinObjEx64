@@ -7101,3 +7101,20 @@ BOOL supListViewExportToFile(
 
     return bResult;
 }
+
+/*
+* supStatusBarSetText
+*
+* Purpose:
+*
+* Display status in status bar part.
+*
+*/
+VOID supStatusBarSetText(
+    _In_ HWND hwndStatusBar,
+    _In_ WPARAM partIndex,
+    _In_ LPWSTR lpText
+)
+{
+    SendMessage(hwndStatusBar, SB_SETTEXT, partIndex, (LPARAM)lpText);
+}

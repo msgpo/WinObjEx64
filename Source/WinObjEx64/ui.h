@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.87
 *
-*  DATE:        28 June 2020
+*  DATE:        04 July 2020
 *
 *  Common header file for the user interface.
 *
@@ -66,7 +66,7 @@ typedef HWND(WINAPI *pfnHtmlHelpW)(
 #endif
 #define PROFRAM_NAME_AND_TITLE  L"Object Explorer for Windows 7/8/8.1/10"
 #define WINOBJEX64_WNDCLASS     L"WinObjEx64Class"
-#define PSLISTCLASSNAME         L"winobjex64_pslistdialogclass"
+#define WINOBJEX64_PSLISTCLASS  L"WinObjEx64PsListClass"
 
 #define T_PROPERTIES            L"Properties...\tEnter"
 #define T_GOTOLINKTARGET        L"Go To Link Target\tCtrl+->"
@@ -86,6 +86,7 @@ typedef HWND(WINAPI *pfnHtmlHelpW)(
 #define T_EMPTY                 L" "
 
 #define T_CSV_FILE_FILTER       TEXT("CSV Files\0*.csv\0\0")
+#define T_LIST_EXPORT_SUCCESS   TEXT("List export - OK")
 
 #define T_DRIVER_REQUIRED       TEXT("Support from helper driver is required for this feature.\r\n\r\n\
 If you see this message it can be caused by:\r\n\

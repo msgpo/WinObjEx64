@@ -576,7 +576,7 @@ VOID MainWindowHandleObjectPopupMenu(
     lvItem.lParam = 0;
     if (ListView_GetItem(hwndlv, &lvItem)) {
         PmBuildPluginPopupMenuByObjectType(hMenu,
-            (ULONG)lvItem.lParam);
+            (UCHAR)lvItem.lParam);
     }
 
     TrackPopupMenu(hMenu, TPM_RIGHTBUTTON | TPM_LEFTALIGN, point->x, point->y, 0, hwnd, NULL);

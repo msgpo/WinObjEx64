@@ -1093,7 +1093,6 @@ VOID PluginFreeGlobalResources()
         ImageList_Destroy(g_ctx.ImageList);
         g_ctx.ImageList = 0;
     }
-
     if (g_ctx.PluginHeap) {
         HeapDestroy(g_ctx.PluginHeap);
         g_ctx.PluginHeap = NULL;
@@ -1248,12 +1247,19 @@ DWORD WINAPI PluginThread(
             2,
             2);
 
-        hIcon = (HICON)LoadImage(g_ctx.ParamBlock.Instance, MAKEINTRESOURCE(WINOBJEX64_ICON_SORT_UP), IMAGE_ICON, 0, 0, LR_DEFAULTCOLOR);
+        hIcon = (HICON)LoadImage(g_ctx.ParamBlock.Instance, 
+            MAKEINTRESOURCE(WINOBJEX64_ICON_SORT_UP), IMAGE_ICON, 0, 0, 
+            LR_DEFAULTCOLOR);
+
         if (hIcon) {
             ImageList_ReplaceIcon(g_ctx.ImageList, -1, hIcon);
             DestroyIcon(hIcon);
         }
-        hIcon = (HICON)LoadImage(g_ctx.ParamBlock.Instance, MAKEINTRESOURCE(WINOBJEX64_ICON_SORT_DOWN), IMAGE_ICON, 0, 0, LR_DEFAULTCOLOR);
+
+        hIcon = (HICON)LoadImage(g_ctx.ParamBlock.Instance, 
+            MAKEINTRESOURCE(WINOBJEX64_ICON_SORT_DOWN), IMAGE_ICON, 0, 0, 
+            LR_DEFAULTCOLOR);
+
         if (hIcon) {
             ImageList_ReplaceIcon(g_ctx.ImageList, -1, hIcon);
             DestroyIcon(hIcon);

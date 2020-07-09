@@ -88,6 +88,9 @@
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <ModuleDefinitionFile>export.def</ModuleDefinitionFile>
     </Link>
+    <PostBuildEvent>
+      <Command>$(SolutionDir)Plugins\postbuild.cmd $(ProjectName) .\output\$(Platform)\$(Configuration)\bin\$(ProjectName).dll .\output\$(Platform)\$(Configuration)\bin\$(ProjectName).pdb</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />

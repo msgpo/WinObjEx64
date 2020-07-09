@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.87
 *
-*  DATE:        28 June 2020
+*  DATE:        04 July 2020
 *
 *  Common header file for the program support routines.
 *
@@ -735,3 +735,8 @@ BOOL supListViewExportToFile(
     _In_ LPWSTR FileName,
     _In_ HWND WindowHandle,
     _In_ HWND ListView);
+
+VOID supStatusBarSetText(
+    _In_ HWND hwndStatusBar,
+    _In_ WPARAM partIndex,
+    _In_ LPWSTR lpText);
