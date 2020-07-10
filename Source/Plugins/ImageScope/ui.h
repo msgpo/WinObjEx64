@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        01 July 2020
+*  DATE:        10 July 2020
 *
 *  WinObjEx64 ImageScope UI constants, definitions and includes.
 *
@@ -28,6 +28,10 @@
 
 #define T_PLUGIN_NAME TEXT("ImageScope")
 #define T_IMS_PROP TEXT("ImsProp")
+
+#define EMPTY_STRING TEXT("")
+
+#define PRINTF_BUFFER_LENGTH 100
 
 #define IMAGESCOPE_WNDTITLE T_PLUGIN_NAME
 
@@ -63,6 +67,20 @@ typedef struct _IMS_TAB {
     WNDPROC WndProc;
     LPTSTR TabCaption;
 } IMS_TAB;
+
+typedef struct _TL_SUBITEMS_FIXED {
+    ULONG       ColorFlags;
+    COLORREF    BgColor;
+    COLORREF    FontColor;
+    PVOID       UserParam;
+    ULONG       Count;
+    LPTSTR      Text[2];
+} TL_SUBITEMS_FIXED, * PTL_SUBITEMS_FIXED;
+
+typedef struct _VALUE_DESC {
+    LPWSTR lpDescription;
+    DWORD dwValue;
+} VALUE_DESC, * PVALUE_DESC;
 
 LRESULT CALLBACK MainWindowProc(
     _In_ HWND hwnd,

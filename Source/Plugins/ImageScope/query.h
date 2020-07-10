@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        04 July 2020
+*  DATE:        10 July 2020
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -76,6 +76,12 @@ VS_FIXEDFILEINFO* PEImageEnumVersionFields(
     _In_ PEnumStringInfoCallback scallback,
     _In_opt_ PEnumVarInfoCallback vcallback,
     _Inout_opt_ PVOID cbparam);
+
+NTSTATUS OpenSection(
+    _Out_ HANDLE* SectionHandle,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_opt_ LPWSTR RootDirectoryName,
+    _In_ LPWSTR ObjectName);
 
 NTSTATUS OpenAndMapSection(
     _Out_ HANDLE* BaseAddress,

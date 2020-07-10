@@ -4,6 +4,7 @@ fix high cpu usage for splitter drag (report/fix by RamMerlabs)
 fix security dialog regression (reported by RamMerlabs)
 added recognizing of shimmed drivers for drivers list (win10+)
 plugins system extended and upgraded to support context plugins
+added imagescope plugin for section object types backed by imagefile
 added plugins viewer
 various minor changes
 

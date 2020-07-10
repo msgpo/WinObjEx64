@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        04 July 2020
+*  DATE:        10 July 2020
 *
 *  WinObjEx64 ImageScope UI.
 *
@@ -25,11 +25,43 @@ INT_PTR CALLBACK TabsWndProc(
     _In_ WPARAM wParam,
     _In_ LPARAM lParam);
 
-IMS_TAB ImsTabs[] = {
+static IMS_TAB ImsTabs[] = {
     { IDD_TABDLG_SECTION, TabSection, TabsWndProc, TEXT("Section") },
     { IDD_TABDLG_VSINFO, TabVSInfo, TabsWndProc, TEXT("VersionInfo") },
     { IDD_TABDLG_STRINGS, TabStrings, TabsWndProc, TEXT("Strings") }
 };
+
+static VALUE_DESC PEImageFileChars[] = {
+    { TEXT("RelocsStripped"), IMAGE_FILE_RELOCS_STRIPPED },
+    { TEXT("Executable"), IMAGE_FILE_EXECUTABLE_IMAGE },
+    { TEXT("LineNumsStripped"), IMAGE_FILE_LINE_NUMS_STRIPPED },
+    { TEXT("SymsStripped"), IMAGE_FILE_LOCAL_SYMS_STRIPPED },
+    { TEXT("AggressiveWsTrim"), IMAGE_FILE_AGGRESIVE_WS_TRIM },
+    { TEXT("LargeAddressAware"), IMAGE_FILE_LARGE_ADDRESS_AWARE },
+    { TEXT("32bit"), IMAGE_FILE_32BIT_MACHINE },
+    { TEXT("DebugStripped"), IMAGE_FILE_DEBUG_STRIPPED },
+    { TEXT("RemovableRunFromSwap"), IMAGE_FILE_REMOVABLE_RUN_FROM_SWAP },
+    { TEXT("NetRunFromSwap"), IMAGE_FILE_NET_RUN_FROM_SWAP },
+    { TEXT("System"), IMAGE_FILE_SYSTEM },
+    { TEXT("Dll"), IMAGE_FILE_DLL },
+    { TEXT("UpSystemOnly"), IMAGE_FILE_UP_SYSTEM_ONLY }
+};
+
+static VALUE_DESC PEDllChars[] = {
+    { TEXT("HighEntropyVA"), IMAGE_DLLCHARACTERISTICS_HIGH_ENTROPY_VA },
+    { TEXT("DynamicBase"), IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE },
+    { TEXT("ForceIntegrity"), IMAGE_DLLCHARACTERISTICS_FORCE_INTEGRITY },
+    { TEXT("NXCompat"), IMAGE_DLLCHARACTERISTICS_NX_COMPAT },
+    { TEXT("NoIsolation"), IMAGE_DLLCHARACTERISTICS_NO_ISOLATION },
+    { TEXT("NoSEH"), IMAGE_DLLCHARACTERISTICS_NO_SEH },
+    { TEXT("NoBind"), IMAGE_DLLCHARACTERISTICS_NO_BIND },
+    { TEXT("AppContainer"), IMAGE_DLLCHARACTERISTICS_APPCONTAINER },
+    { TEXT("WDMDriver"), IMAGE_DLLCHARACTERISTICS_WDM_DRIVER },
+    { TEXT("GuardCF"), IMAGE_DLLCHARACTERISTICS_GUARD_CF },
+    { TEXT("TerminalServerAware"), IMAGE_DLLCHARACTERISTICS_TERMINAL_SERVER_AWARE }
+};
+
+#define GET_BIT(Integer, Bit) (((Integer) >> (Bit)) & 0x1)
 
 /*
 * StatusBarSetText
@@ -46,6 +78,37 @@ VOID StatusBarSetText(
 )
 {
     SendMessage(hwndStatusBar, SB_SETTEXT, partIndex, (LPARAM)lpText);
+}
+
+/*
+* TreeListAddItem
+*
+* Purpose:
+*
+* Insert new treelist item.
+*
+*/
+HTREEITEM TreeListAddItem(
+    _In_ HWND TreeList,
+    _In_opt_ HTREEITEM hParent,
+    _In_ UINT mask,
+    _In_ UINT state,
+    _In_ UINT stateMask,
+    _In_opt_ LPWSTR pszText,
+    _In_opt_ PVOID subitems
+)
+{
+    TVINSERTSTRUCT  tvitem;
+    PTL_SUBITEMS    si = (PTL_SUBITEMS)subitems;
+
+    RtlSecureZeroMemory(&tvitem, sizeof(tvitem));
+    tvitem.hParent = hParent;
+    tvitem.item.mask = mask;
+    tvitem.item.state = state;
+    tvitem.item.stateMask = stateMask;
+    tvitem.item.pszText = pszText;
+    tvitem.hInsertAfter = TVI_LAST;
+    return TreeList_InsertTreeItem(TreeList, &tvitem, si);
 }
 
 /*
@@ -139,6 +202,7 @@ VOID VsInfoTabOnInit(
     _In_ GUI_CONTEXT* Context
 )
 {
+    WCHAR szText[100];
     HWND hwndList = GetDlgItem(hWndDlg, IDC_LIST);
 
     AddListViewColumn(hwndList,
@@ -172,10 +236,404 @@ VOID VsInfoTabOnInit(
         Context->CurrentDPI);
 
     ListView_SetExtendedListViewStyle(hwndList,
-        LVS_EX_FULLROWSELECT | /*LVS_EX_GRIDLINES |*/ LVS_EX_LABELTIP | LVS_EX_DOUBLEBUFFER);
+        LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP | LVS_EX_DOUBLEBUFFER);
 
     SetWindowTheme(hwndList, TEXT("Explorer"), NULL);
-    PEImageEnumVersionFields(Context->SectionAddress, &VsInfoStringsEnumCallback, NULL, (LPVOID)hwndList);
+
+    if (PEImageEnumVersionFields(
+        Context->SectionAddress,
+        &VsInfoStringsEnumCallback,
+        NULL,
+        (LPVOID)hwndList))
+    {
+        StringCchCopy(szText, _countof(szText), TEXT("Query - OK"));
+    }
+    else {
+        StringCchPrintf(
+            szText,
+            _countof(szText),
+            TEXT("Query Error 0x%lx"), GetLastError());
+    }
+
+    StatusBarSetText(
+        Context->StatusBar,
+        0,
+        szText);
+}
+
+typedef enum _ValueDumpType {
+    UlongDump = 0,
+    UShortDump,
+    UCharDump,
+    BooleanDump,
+    InvalidDumpType
+} ValueDumpType;
+
+VOID SectionDumpUlong(
+    _In_ HWND TreeList,
+    _In_ HTREEITEM RootItem,
+    _In_ ULONG Value,
+    _In_ LPWSTR ValueName,
+    _In_opt_ LPWSTR ValueDesc,
+    _In_ ValueDumpType DumpType
+)
+{
+    TL_SUBITEMS_FIXED subitems;
+    LPWSTR lpFormat;
+    WCHAR szText[PRINTF_BUFFER_LENGTH];
+
+    RtlSecureZeroMemory(&subitems, sizeof(subitems));
+    szText[0] = 0;
+    subitems.Count = 2;
+    subitems.Text[0] = szText;
+
+    if (ValueDesc)
+        subitems.Text[1] = ValueDesc;
+    else
+        subitems.Text[1] = EMPTY_STRING;
+
+    switch (DumpType) {
+    case UShortDump:
+        lpFormat = TEXT("0x%hX");
+        break;
+    case UCharDump:
+        lpFormat = TEXT("0x%02X");
+        break;
+    case BooleanDump:
+        lpFormat = TEXT("%01u");
+        break;
+    case UlongDump:
+    default:
+        lpFormat = TEXT("0x%08lX");
+        break;
+    }
+
+    StringCchPrintf(
+        szText,
+        PRINTF_BUFFER_LENGTH,
+        lpFormat,
+        Value);
+
+    TreeListAddItem(
+        TreeList,
+        RootItem,
+        TVIF_TEXT | TVIF_STATE,
+        (UINT)0,
+        (UINT)0,
+        ValueName,
+        &subitems);
+
+}
+
+VOID SectionDumpFlags(
+    _In_ HWND TreeList,
+    _In_ HTREEITEM RootItem,
+    _In_ ULONG Flags,
+    _In_ PVALUE_DESC FlagsDescriptions,
+    _In_ ULONG MaxDescriptions,
+    _In_ LPWSTR ValueName,
+    _In_ ValueDumpType DumpType
+)
+{
+    UINT i, j;
+    LPWSTR lpType;
+    ULONG scanFlags = Flags;
+    TL_SUBITEMS_FIXED subitems;
+
+    WCHAR szValue[PRINTF_BUFFER_LENGTH];
+
+    RtlSecureZeroMemory(&szValue, sizeof(szValue));
+    RtlSecureZeroMemory(&subitems, sizeof(subitems));
+
+    j = 0;
+    lpType = NULL;
+    if (scanFlags) {
+        for (i = 0; i < MaxDescriptions; i++) {
+            if (scanFlags & FlagsDescriptions[i].dwValue) {
+                lpType = FlagsDescriptions[i].lpDescription;
+                subitems.Count = 2;
+
+                //add first entry with name
+                if (j == 0) {
+
+                    StringCchPrintf(szValue, PRINTF_BUFFER_LENGTH,
+                        TEXT("0x%08lX"), scanFlags);
+
+                    subitems.Text[0] = szValue;
+                    subitems.Text[1] = lpType;
+                }
+                else {
+                    //add subentry
+                    subitems.Text[0] = EMPTY_STRING;
+                    subitems.Text[1] = lpType;
+                }
+
+                TreeListAddItem(
+                    TreeList,
+                    RootItem,
+                    TVIF_TEXT | TVIF_STATE,
+                    0,
+                    0,
+                    (j == 0) ? ValueName : EMPTY_STRING,
+                    &subitems);
+
+                scanFlags &= ~FlagsDescriptions[i].dwValue;
+                j++;
+            }
+            if (scanFlags == 0) {
+                break;
+            }
+        }
+    }
+    else {
+        SectionDumpUlong(TreeList, RootItem, Flags, ValueName, NULL, DumpType);
+    }
+}
+
+VOID SectionDumpStructs(
+    _In_ GUI_CONTEXT* Context
+)
+{
+    BOOL bInternalPresent = FALSE;
+    SECTION_IMAGE_INFORMATION sii;
+    SECTION_INTERNAL_IMAGE_INFORMATION sii2;
+    NTSTATUS ntStatus = STATUS_UNSUCCESSFUL;
+    HANDLE sectionHandle = NULL;
+    SIZE_T returnLength;
+
+    WCHAR szText[PRINTF_BUFFER_LENGTH];
+
+    LPWSTR lpDesc;
+    HTREEITEM tviRoot;
+    TL_SUBITEMS_FIXED subitems;
+
+    __try {
+
+        ntStatus = OpenSection(
+            &sectionHandle,
+            SECTION_QUERY,
+            Context->ParamBlock.Object.ObjectDirectory,
+            Context->ParamBlock.Object.ObjectName);
+
+        if (!NT_SUCCESS(ntStatus))
+            __leave;
+
+        ntStatus = NtQuerySection(
+            sectionHandle,
+            SectionImageInformation,
+            &sii,
+            sizeof(SECTION_IMAGE_INFORMATION),
+            &returnLength);
+
+        if (!NT_SUCCESS(ntStatus))
+            __leave;
+
+        bInternalPresent = NT_SUCCESS(NtQuerySection(
+            sectionHandle,
+            SectionInternalImageInformation,
+            &sii2,
+            sizeof(SECTION_INTERNAL_IMAGE_INFORMATION),
+            &returnLength));
+
+        NtClose(sectionHandle);
+        sectionHandle = NULL;
+
+        tviRoot = TreeListAddItem(
+            Context->TreeList,
+            NULL,
+            TVIF_TEXT | TVIF_STATE,
+            (UINT)TVIS_EXPANDED,
+            (UINT)TVIS_EXPANDED,
+            TEXT("SECTION_IMAGE_INFORMATION"),
+            NULL);
+
+        if (tviRoot) {
+
+            RtlSecureZeroMemory(&subitems, sizeof(subitems));
+            szText[0] = 0;
+            subitems.Count = 2;
+            subitems.Text[0] = szText;
+            subitems.Text[1] = EMPTY_STRING;
+
+            StringCchPrintf(szText, PRINTF_BUFFER_LENGTH, TEXT("0x%p"), sii.TransferAddress);
+            TreeListAddItem(
+                Context->TreeList,
+                tviRoot,
+                TVIF_TEXT | TVIF_STATE,
+                (UINT)0,
+                (UINT)0,
+                TEXT("TransferAddress"),
+                &subitems);
+
+            SectionDumpUlong(Context->TreeList, tviRoot,
+                sii.ZeroBits, TEXT("ZeroBits"), NULL, UlongDump);
+
+            StringCchPrintf(szText, PRINTF_BUFFER_LENGTH, TEXT("0x%I64X"), sii.MaximumStackSize);
+            TreeListAddItem(
+                Context->TreeList,
+                tviRoot,
+                TVIF_TEXT | TVIF_STATE,
+                (UINT)0,
+                (UINT)0,
+                TEXT("MaximumStackSize"),
+                &subitems);
+
+            StringCchPrintf(szText, PRINTF_BUFFER_LENGTH, TEXT("0x%I64X"), sii.CommittedStackSize);
+            TreeListAddItem(
+                Context->TreeList,
+                tviRoot,
+                TVIF_TEXT | TVIF_STATE,
+                (UINT)0,
+                (UINT)0,
+                TEXT("CommittedStackSize"),
+                &subitems);
+
+            switch (sii.SubSystemType) {
+            case IMAGE_SUBSYSTEM_NATIVE:
+                lpDesc = TEXT("Native");
+                break;
+            case IMAGE_SUBSYSTEM_WINDOWS_GUI:
+                lpDesc = TEXT("Windows GUI");
+                break;
+            case IMAGE_SUBSYSTEM_WINDOWS_CUI:
+                lpDesc = TEXT("Windows Console");
+                break;
+            case IMAGE_SUBSYSTEM_OS2_CUI:
+                lpDesc = TEXT("OS/2 Console");
+                break;
+            case IMAGE_SUBSYSTEM_POSIX_CUI:
+                lpDesc = TEXT("Posix Console");
+                break;
+            case IMAGE_SUBSYSTEM_XBOX:
+                lpDesc = TEXT("XBox");
+                break;
+            case IMAGE_SUBSYSTEM_EFI_APPLICATION:
+                lpDesc = TEXT("EFI Application");
+                break;
+            case IMAGE_SUBSYSTEM_EFI_BOOT_SERVICE_DRIVER:
+                lpDesc = TEXT("EFI Boot Service Driver");
+                break;
+            case IMAGE_SUBSYSTEM_EFI_RUNTIME_DRIVER:
+                lpDesc = TEXT("EFI Runtime Driver");
+                break;
+            case IMAGE_SUBSYSTEM_WINDOWS_BOOT_APPLICATION:
+                lpDesc = TEXT("Windows Boot Application");
+                break;
+            case IMAGE_SUBSYSTEM_XBOX_CODE_CATALOG:
+                lpDesc = TEXT("XBox Code Catalog");
+                break;
+            default:
+                lpDesc = TEXT("Unknown");
+                break;
+            }
+
+            SectionDumpUlong(Context->TreeList, tviRoot,
+                sii.SubSystemType, TEXT("SubSystemType"), lpDesc, UlongDump);
+
+            StringCchPrintf(
+                szText,
+                PRINTF_BUFFER_LENGTH,
+                TEXT("%hu.%hu"),
+                sii.SubSystemMajorVersion,
+                sii.SubSystemMinorVersion);
+
+            SectionDumpUlong(Context->TreeList, tviRoot,
+                sii.SubSystemVersion, TEXT("SubSystemType"), szText, UlongDump);
+
+            StringCchPrintf(
+                szText,
+                PRINTF_BUFFER_LENGTH,
+                TEXT("%hu.%hu"),
+                sii.MajorOperatingSystemVersion,
+                sii.MinorOperatingSystemVersion);
+
+            SectionDumpUlong(Context->TreeList, tviRoot,
+                sii.OperatingSystemVersion, TEXT("OperatingSystemVersion"), szText, UlongDump);
+
+            SectionDumpFlags(Context->TreeList, tviRoot,
+                sii.ImageCharacteristics,
+                PEImageFileChars,
+                RTL_NUMBER_OF(PEImageFileChars),
+                TEXT("ImageCharacteristics"),
+                UShortDump);
+
+            SectionDumpFlags(Context->TreeList, tviRoot,
+                sii.DllCharacteristics,
+                PEDllChars,
+                RTL_NUMBER_OF(PEDllChars),
+                TEXT("DllCharacteristics"),
+                UShortDump);
+
+            switch (sii.Machine) {
+            case IMAGE_FILE_MACHINE_I386:
+                lpDesc = TEXT("Intel386");
+                break;
+            case IMAGE_FILE_MACHINE_AMD64:
+                lpDesc = TEXT("AMD64");
+                break;
+            default:
+                lpDesc = TEXT("Unknown/Unsupported Machine");
+                break;
+            }
+
+            SectionDumpUlong(Context->TreeList, tviRoot,
+                sii.Machine, TEXT("Machine"), lpDesc, UShortDump);
+
+            SectionDumpUlong(Context->TreeList, tviRoot,
+                (ULONG)sii.ImageContainsCode, TEXT("ImageContainsCode"), NULL, BooleanDump);
+
+            SectionDumpUlong(Context->TreeList, tviRoot,
+                (ULONG)sii.ImageFlags, TEXT("ImageFlags"), NULL, UCharDump);
+
+            SectionDumpUlong(Context->TreeList, tviRoot,
+                sii.LoaderFlags, TEXT("LoaderFlags"), NULL, UlongDump);
+
+            SectionDumpUlong(Context->TreeList, tviRoot,
+                sii.ImageFileSize, TEXT("ImageFileSize"), NULL, UlongDump);
+
+            SectionDumpUlong(Context->TreeList, tviRoot,
+                sii.CheckSum, TEXT("CheckSum"), NULL, UlongDump);
+
+        }
+
+        if (bInternalPresent == FALSE)
+            __leave;
+
+        tviRoot = TreeListAddItem(
+            Context->TreeList,
+            NULL,
+            TVIF_TEXT | TVIF_STATE,
+            (UINT)TVIS_EXPANDED,
+            (UINT)TVIS_EXPANDED,
+            TEXT("SECTION_INTERNAL_IMAGE_INFORMATION"),
+            NULL);
+
+        if (tviRoot) {
+
+            SectionDumpUlong(Context->TreeList, tviRoot,
+                sii2.ExtendedFlags, TEXT("ExtendedFlags"), NULL, UlongDump);
+
+        }
+
+    }
+    __finally {
+        if (sectionHandle)
+            NtClose(sectionHandle);
+
+        if (!NT_SUCCESS(ntStatus)) {
+            StringCchPrintf(szText,
+                _countof(szText),
+                TEXT("Query status 0x%lx"), ntStatus);
+        }
+        else {
+            _strcpy(szText, TEXT("Query - OK"));
+        }
+
+        StatusBarSetText(
+            Context->StatusBar,
+            0,
+            szText);
+    }
 }
 
 /*
@@ -217,13 +675,10 @@ VOID SectionTabOnInit(
         hdritem.pszText = TEXT("Additional Information");
         TreeList_InsertHeaderItem(hwndList, 2, &hdritem);
 
+        Context->TreeList = hwndList;
+        SectionDumpStructs(Context);
     }
 
-    Context->TreeList = hwndList;
-
-    //
-    // TBD FIXME
-    //
 }
 
 /*
@@ -241,17 +696,18 @@ VOID StringsTabOnShow(
     _In_ GUI_CONTEXT* Context
 )
 {
-    INT nLength;
+    INT nLength, iItem;
+    UINT cUnicode = 0, cAnsi = 0;
     PVOID heapHandle = NULL;
     HWND hwndList = GetDlgItem(hWndDlg, IDC_LIST);
     PSTRING_PTR chain;
     WCHAR szBuffer[UNICODE_STRING_MAX_CHARS];
     LV_ITEM lvItem;
 
-    supSetWaitCursor(TRUE);
-    ShowWindow(hwndList, SW_HIDE);
-
     __try {
+
+        supSetWaitCursor(TRUE);
+        ShowWindow(hwndList, SW_HIDE);
 
         heapHandle = HeapCreate(0, UNICODE_STRING_MAX_CHARS * sizeof(WCHAR), 0);
         if (heapHandle == NULL)
@@ -271,13 +727,20 @@ VOID StringsTabOnShow(
                 UNICODE_STRING_MAX_CHARS);
 
             if (nLength) {
-                
+
                 szBuffer[nLength] = 0;
 
                 lvItem.mask = LVIF_TEXT;
                 lvItem.pszText = szBuffer;
                 lvItem.iItem = INT_MAX;
-                ListView_InsertItem(hwndList, &lvItem);
+                lvItem.iSubItem = 0;
+                iItem = ListView_InsertItem(hwndList, &lvItem);
+
+                lvItem.pszText = TEXT("A");
+                lvItem.iSubItem = 1;
+                lvItem.iItem = iItem;
+                ListView_SetItem(hwndList, &lvItem);
+                cAnsi++;
             }
 
             chain = chain->pnext;
@@ -298,8 +761,15 @@ VOID StringsTabOnShow(
             lvItem.mask = LVIF_TEXT;
             lvItem.pszText = szBuffer;
             lvItem.iItem = INT_MAX;
-            ListView_InsertItem(hwndList, &lvItem);
+            lvItem.iSubItem = 0;
+            iItem = ListView_InsertItem(hwndList, &lvItem);
 
+            lvItem.pszText = TEXT("U");
+            lvItem.iSubItem = 1;
+            lvItem.iItem = iItem;
+            ListView_SetItem(hwndList, &lvItem);
+
+            cUnicode++;
             chain = chain->pnext;
         }
 
@@ -309,6 +779,18 @@ VOID StringsTabOnShow(
         ShowWindow(hwndList, SW_SHOW);
         if (heapHandle)
             RtlDestroyHeap(heapHandle);
+
+        StringCchPrintf(
+            szBuffer,
+            _countof(szBuffer),
+            TEXT("Strings: %ld (A: %lu, U: %lu)"),
+            ListView_GetItemCount(hwndList),
+            cAnsi, cUnicode);
+
+        StatusBarSetText(
+            Context->StatusBar,
+            0,
+            szBuffer);
     }
 }
 #pragma warning(pop)
@@ -340,7 +822,18 @@ VOID StringsTabOnInit(
             MAX_PATH,
             Context->CurrentDPI);
 
+        AddListViewColumn(hwndList,
+            1,
+            1,
+            1,
+            I_IMAGENONE,
+            LVCFMT_CENTER,
+            TEXT("Type"),
+            80,
+            Context->CurrentDPI);
+
         ListView_SetExtendedListViewStyle(hwndList, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
+        SetWindowTheme(hwndList, TEXT("Explorer"), NULL);
     }
 }
 

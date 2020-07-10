@@ -218,11 +218,61 @@ VS_FIXEDFILEINFO* PEImageEnumVersionFields(
         }
     }
     __finally {
-        if (AbnormalTermination())
+        if (AbnormalTermination()) {
+            SetLastError((DWORD)STATUS_ACCESS_VIOLATION);
             return NULL;
+        }
     }
 
     return vinfo;
+}
+
+/*
+* OpenSection
+*
+* Purpose:
+*
+* Open section by name with given access flags.
+*
+*/
+NTSTATUS OpenSection(
+    _Out_ HANDLE *SectionHandle,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_opt_ LPWSTR RootDirectoryName,
+    _In_ LPWSTR ObjectName
+)
+{
+    NTSTATUS ntStatus;
+    HANDLE dirHandle = NULL, sectionHandle = NULL;
+    OBJECT_ATTRIBUTES objAttr;
+    UNICODE_STRING uString;
+
+    *SectionHandle = NULL;
+
+    if (ObjectName == NULL)
+        return STATUS_INVALID_PARAMETER;
+
+    InitializeObjectAttributes(&objAttr, &uString, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    if (RootDirectoryName) {
+        RtlInitUnicodeString(&uString, RootDirectoryName);
+
+        ntStatus = NtOpenDirectoryObject(&dirHandle,
+            DIRECTORY_QUERY, &objAttr);
+
+        if (!NT_SUCCESS(ntStatus))
+            return ntStatus;
+
+        objAttr.RootDirectory = dirHandle;
+    }
+
+    RtlInitUnicodeString(&uString, ObjectName);
+    ntStatus = NtOpenSection(&sectionHandle,
+        DesiredAccess, &objAttr);
+
+    *SectionHandle = sectionHandle;
+
+    return ntStatus;
 }
 
 /*
@@ -241,36 +291,19 @@ NTSTATUS OpenAndMapSection(
 {
     NTSTATUS ntStatus;
     HANDLE dirHandle = NULL, sectionHandle = NULL;
-    OBJECT_ATTRIBUTES objAttr;
-    UNICODE_STRING uString;
     SECTION_BASIC_INFORMATION sbi;
     SIZE_T bytesReturned;
 
     *BaseAddress = NULL;
     *ViewSize = 0;
 
-    if ((RootDirectoryName == NULL) ||
-        (ObjectName == NULL))
-    {
-        return STATUS_INVALID_PARAMETER;
-    }
-
     __try {
 
-        RtlInitUnicodeString(&uString, RootDirectoryName);
-        InitializeObjectAttributes(&objAttr, &uString, OBJ_CASE_INSENSITIVE, NULL, NULL);
-
-        ntStatus = NtOpenDirectoryObject(&dirHandle,
-            DIRECTORY_QUERY, &objAttr);
-
-        if (!NT_SUCCESS(ntStatus))
-            __leave;
-
-        RtlInitUnicodeString(&uString, ObjectName);
-        objAttr.RootDirectory = dirHandle;
-
-        ntStatus = NtOpenSection(&sectionHandle,
-            SECTION_QUERY | SECTION_MAP_READ, &objAttr);
+        ntStatus = OpenSection(
+            &sectionHandle,
+            SECTION_QUERY | SECTION_MAP_READ,
+            RootDirectoryName,
+            ObjectName);
 
         if (!NT_SUCCESS(ntStatus))
             __leave;
