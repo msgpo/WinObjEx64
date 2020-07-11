@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.87
 *
-*  DATE:        27 June 2020
+*  DATE:        11 July 2020
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -1427,7 +1427,7 @@ VOID supCreateToolbarButtons(
     _In_ HWND hWndToolbar
 )
 {
-    TBBUTTON tbButtons[5];
+    TBBUTTON tbButtons[6];
 
     RtlSecureZeroMemory(tbButtons, sizeof(tbButtons));
 
@@ -1445,21 +1445,26 @@ VOID supCreateToolbarButtons(
     tbButtons[2].idCommand = ID_VIEW_REFRESH;
     tbButtons[2].fsState = TBSTATE_ENABLED;
 
-    //separator
-    tbButtons[3].fsStyle = BTNS_SEP;
-    tbButtons[3].iBitmap = 10;
+    tbButtons[3].iBitmap = 7;
+    tbButtons[3].fsStyle = BTNS_BUTTON;
+    tbButtons[3].idCommand = ID_DISPLAY_GRID;
+    tbButtons[3].fsState = TBSTATE_ENABLED;
 
-    tbButtons[4].iBitmap = 2;
-    tbButtons[4].fsStyle = BTNS_BUTTON;
-    tbButtons[4].idCommand = ID_FIND_FINDOBJECT;
-    tbButtons[4].fsState = TBSTATE_ENABLED;
+    //separator
+    tbButtons[4].fsStyle = BTNS_SEP;
+    tbButtons[4].iBitmap = 10;
+
+    tbButtons[5].iBitmap = 2;
+    tbButtons[5].fsStyle = BTNS_BUTTON;
+    tbButtons[5].idCommand = ID_FIND_FINDOBJECT;
+    tbButtons[5].fsState = TBSTATE_ENABLED;
 
     SendMessage(hWndToolbar, TB_SETIMAGELIST, 0, (LPARAM)g_ToolBarMenuImages);
     SendMessage(hWndToolbar, TB_LOADIMAGES, (WPARAM)IDB_STD_SMALL_COLOR, (LPARAM)HINST_COMMCTRL);
 
     SendMessage(hWndToolbar, TB_BUTTONSTRUCTSIZE,
         (WPARAM)sizeof(TBBUTTON), 0);
-    SendMessage(hWndToolbar, TB_ADDBUTTONS, (WPARAM)4 + 1,
+    SendMessage(hWndToolbar, TB_ADDBUTTONS, (WPARAM)5 + 1,
         (LPARAM)&tbButtons);
 
     SendMessage(hWndToolbar, TB_AUTOSIZE, 0, 0);
@@ -7081,21 +7086,21 @@ BOOL supListViewExportToFile(
 )
 {
     BOOL bResult = FALSE;
-    HCURSOR hSaveCursor, hHourGlass;
     WCHAR szExportFileName[MAX_PATH + 1];
+
+    RtlSecureZeroMemory(&szExportFileName, sizeof(szExportFileName));
 
     _strcpy(szExportFileName, FileName);
     if (supSaveDialogExecute(WindowHandle,
         (LPWSTR)&szExportFileName,
         T_CSV_FILE_FILTER))
     {
-        hHourGlass = LoadCursor(NULL, IDC_WAIT);
         SetCapture(WindowHandle);
-        hSaveCursor = SetCursor(hHourGlass);
+        supSetWaitCursor(TRUE);
 
         bResult = supxListViewExportCSV(ListView, szExportFileName);
 
-        SetCursor(hSaveCursor);
+        supSetWaitCursor(FALSE);
         ReleaseCapture();
     }
 

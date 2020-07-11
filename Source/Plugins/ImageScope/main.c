@@ -200,7 +200,7 @@ NTSTATUS CALLBACK StartPlugin(
         return STATUS_MEMORY_NOT_ALLOCATED;
     }
 
-    Status = OpenAndMapSection(
+    Status = supOpenAndMapSection(
         &Context->SectionAddress,
         &Context->SectionViewSize,
         Context->ParamBlock.Object.ObjectDirectory,

@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.87
 *
-*  DATE:        28 June 2020
+*  DATE:        11 July 2020
 *
 *  Common header file for the Windows Object Explorer.
 *
@@ -135,6 +135,7 @@ extern ULONG g_CurrentDPI;
 typedef struct _WINOBJ_GLOBALS {
     BOOLEAN IsWine;
     BOOLEAN EnableFullMitigations;
+    BOOLEAN ListViewDisplayGrid;
     HINSTANCE hInstance;
     HANDLE Heap;
     HANDLE RichEditHandle;

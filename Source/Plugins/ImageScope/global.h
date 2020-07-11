@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        04 July 2020
+*  DATE:        11 July 2020
 *
 *  Common header file for the Windows Object Explorer ImageScope plugin.
 *
@@ -49,6 +49,7 @@
 #include "plugin_def.h"
 #include "resource.h"
 #include "query.h"
+#include "sup.h"
 #include "ui.h"
 
 //declared in main.c

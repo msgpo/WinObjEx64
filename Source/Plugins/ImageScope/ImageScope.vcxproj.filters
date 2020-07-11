@@ -54,6 +54,9 @@
     <ClCompile Include="..\..\Shared\minirtl\_strncpy.c">
       <Filter>minirtl</Filter>
     </ClCompile>
+    <ClCompile Include="sup.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="resource.h">
@@ -85,6 +88,9 @@
     </ClInclude>
     <ClInclude Include="..\..\Shared\treelist\treelist.h">
       <Filter>treelist</Filter>
+    </ClInclude>
+    <ClInclude Include="sup.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

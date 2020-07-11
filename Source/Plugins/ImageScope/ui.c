@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        10 July 2020
+*  DATE:        11 July 2020
 *
 *  WinObjEx64 ImageScope UI.
 *
@@ -26,9 +26,9 @@ INT_PTR CALLBACK TabsWndProc(
     _In_ LPARAM lParam);
 
 static IMS_TAB ImsTabs[] = {
-    { IDD_TABDLG_SECTION, TabSection, TabsWndProc, TEXT("Section") },
-    { IDD_TABDLG_VSINFO, TabVSInfo, TabsWndProc, TEXT("VersionInfo") },
-    { IDD_TABDLG_STRINGS, TabStrings, TabsWndProc, TEXT("Strings") }
+    { IDD_TABDLG_SECTION, TabIdSection, TabsWndProc, TEXT("Section") },
+    { IDD_TABDLG_VSINFO, TabIdVSInfo, TabsWndProc, TEXT("VersionInfo") },
+    { IDD_TABDLG_STRINGS, TabIdStrings, TabsWndProc, TEXT("Strings") }
 };
 
 static VALUE_DESC PEImageFileChars[] = {
@@ -60,206 +60,6 @@ static VALUE_DESC PEDllChars[] = {
     { TEXT("GuardCF"), IMAGE_DLLCHARACTERISTICS_GUARD_CF },
     { TEXT("TerminalServerAware"), IMAGE_DLLCHARACTERISTICS_TERMINAL_SERVER_AWARE }
 };
-
-#define GET_BIT(Integer, Bit) (((Integer) >> (Bit)) & 0x1)
-
-/*
-* StatusBarSetText
-*
-* Purpose:
-*
-* Display status in status bar part.
-*
-*/
-VOID StatusBarSetText(
-    _In_ HWND hwndStatusBar,
-    _In_ WPARAM partIndex,
-    _In_ LPWSTR lpText
-)
-{
-    SendMessage(hwndStatusBar, SB_SETTEXT, partIndex, (LPARAM)lpText);
-}
-
-/*
-* TreeListAddItem
-*
-* Purpose:
-*
-* Insert new treelist item.
-*
-*/
-HTREEITEM TreeListAddItem(
-    _In_ HWND TreeList,
-    _In_opt_ HTREEITEM hParent,
-    _In_ UINT mask,
-    _In_ UINT state,
-    _In_ UINT stateMask,
-    _In_opt_ LPWSTR pszText,
-    _In_opt_ PVOID subitems
-)
-{
-    TVINSERTSTRUCT  tvitem;
-    PTL_SUBITEMS    si = (PTL_SUBITEMS)subitems;
-
-    RtlSecureZeroMemory(&tvitem, sizeof(tvitem));
-    tvitem.hParent = hParent;
-    tvitem.item.mask = mask;
-    tvitem.item.state = state;
-    tvitem.item.stateMask = stateMask;
-    tvitem.item.pszText = pszText;
-    tvitem.hInsertAfter = TVI_LAST;
-    return TreeList_InsertTreeItem(TreeList, &tvitem, si);
-}
-
-/*
-* AddListViewColumn
-*
-* Purpose:
-*
-* Insert list view column.
-*
-*/
-INT AddListViewColumn(
-    _In_ HWND ListViewHwnd,
-    _In_ INT ColumnIndex,
-    _In_ INT SubItemIndex,
-    _In_ INT OrderIndex,
-    _In_ INT ImageIndex,
-    _In_ INT Format,
-    _In_ LPWSTR Text,
-    _In_ INT Width,
-    _In_ INT DpiValue
-)
-{
-    LVCOLUMN column;
-
-    column.mask = LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT | LVCF_WIDTH | LVCF_ORDER | LVCF_IMAGE;
-    column.fmt = Format;
-    column.cx = ScaleDPI(Width, DpiValue);
-    column.pszText = Text;
-    column.iSubItem = SubItemIndex;
-    column.iOrder = OrderIndex;
-    column.iImage = ImageIndex;
-
-    return ListView_InsertColumn(ListViewHwnd, ColumnIndex, &column);
-}
-
-/*
-* VsInfoStringsEnumCallback
-*
-* Purpose:
-*
-* VERSION_INFO enumeration callback.
-*
-*/
-BOOL CALLBACK VsInfoStringsEnumCallback(
-    _In_ PWCHAR key,
-    _In_ PWCHAR value,
-    _In_ PWCHAR langid,
-    _In_opt_ LPVOID cbparam
-)
-{
-    LV_ITEM lvItem;
-    INT itemIndex;
-    HWND hwndList = (HWND)cbparam;
-    WCHAR szLangId[128];
-
-    if (hwndList == 0)
-        return 0;
-
-    RtlSecureZeroMemory(&lvItem, sizeof(lvItem));
-    lvItem.mask = LVIF_TEXT;
-    lvItem.pszText = key;
-    lvItem.iItem = MAXINT;
-    itemIndex = ListView_InsertItem(hwndList, &lvItem);
-
-    lvItem.iSubItem = 1;
-    lvItem.pszText = value;
-    lvItem.iItem = itemIndex;
-    ListView_SetItem(hwndList, &lvItem);
-
-    szLangId[0] = 0;
-    StringCchPrintf(szLangId, _countof(szLangId), TEXT("0x%ws"), langid);
-
-    lvItem.iSubItem = 2;
-    lvItem.pszText = szLangId;
-    lvItem.iItem = itemIndex;
-    ListView_SetItem(hwndList, &lvItem);
-
-    return TRUE;//continue enum
-}
-
-/*
-* VsInfoTabOnInit
-*
-* Purpose:
-*
-* Initialize VersionInfo tab dialog page.
-*
-*/
-VOID VsInfoTabOnInit(
-    _In_ HWND hWndDlg,
-    _In_ GUI_CONTEXT* Context
-)
-{
-    WCHAR szText[100];
-    HWND hwndList = GetDlgItem(hWndDlg, IDC_LIST);
-
-    AddListViewColumn(hwndList,
-        0,
-        0,
-        0,
-        I_IMAGENONE,
-        LVCFMT_LEFT,
-        TEXT("Name"),
-        120,
-        Context->CurrentDPI);
-
-    AddListViewColumn(hwndList,
-        1,
-        1,
-        1,
-        I_IMAGENONE,
-        LVCFMT_LEFT,
-        TEXT("Value"),
-        300,
-        Context->CurrentDPI);
-
-    AddListViewColumn(hwndList,
-        2,
-        2,
-        2,
-        I_IMAGENONE,
-        LVCFMT_LEFT,
-        TEXT("LangId"),
-        100,
-        Context->CurrentDPI);
-
-    ListView_SetExtendedListViewStyle(hwndList,
-        LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP | LVS_EX_DOUBLEBUFFER);
-
-    SetWindowTheme(hwndList, TEXT("Explorer"), NULL);
-
-    if (PEImageEnumVersionFields(
-        Context->SectionAddress,
-        &VsInfoStringsEnumCallback,
-        NULL,
-        (LPVOID)hwndList))
-    {
-        StringCchCopy(szText, _countof(szText), TEXT("Query - OK"));
-    }
-    else {
-        StringCchPrintf(
-            szText,
-            _countof(szText),
-            TEXT("Query Error 0x%lx"), GetLastError());
-    }
-
-    StatusBarSetText(
-        Context->StatusBar,
-        0,
-        szText);
-}
 
 typedef enum _ValueDumpType {
     UlongDump = 0,
@@ -314,7 +114,7 @@ VOID SectionDumpUlong(
         lpFormat,
         Value);
 
-    TreeListAddItem(
+    supTreeListAddItem(
         TreeList,
         RootItem,
         TVIF_TEXT | TVIF_STATE,
@@ -368,7 +168,7 @@ VOID SectionDumpFlags(
                     subitems.Text[1] = lpType;
                 }
 
-                TreeListAddItem(
+                supTreeListAddItem(
                     TreeList,
                     RootItem,
                     TVIF_TEXT | TVIF_STATE,
@@ -409,7 +209,7 @@ VOID SectionDumpStructs(
 
     __try {
 
-        ntStatus = OpenSection(
+        ntStatus = supOpenSection(
             &sectionHandle,
             SECTION_QUERY,
             Context->ParamBlock.Object.ObjectDirectory,
@@ -438,7 +238,7 @@ VOID SectionDumpStructs(
         NtClose(sectionHandle);
         sectionHandle = NULL;
 
-        tviRoot = TreeListAddItem(
+        tviRoot = supTreeListAddItem(
             Context->TreeList,
             NULL,
             TVIF_TEXT | TVIF_STATE,
@@ -456,7 +256,7 @@ VOID SectionDumpStructs(
             subitems.Text[1] = EMPTY_STRING;
 
             StringCchPrintf(szText, PRINTF_BUFFER_LENGTH, TEXT("0x%p"), sii.TransferAddress);
-            TreeListAddItem(
+            supTreeListAddItem(
                 Context->TreeList,
                 tviRoot,
                 TVIF_TEXT | TVIF_STATE,
@@ -469,7 +269,7 @@ VOID SectionDumpStructs(
                 sii.ZeroBits, TEXT("ZeroBits"), NULL, UlongDump);
 
             StringCchPrintf(szText, PRINTF_BUFFER_LENGTH, TEXT("0x%I64X"), sii.MaximumStackSize);
-            TreeListAddItem(
+            supTreeListAddItem(
                 Context->TreeList,
                 tviRoot,
                 TVIF_TEXT | TVIF_STATE,
@@ -479,7 +279,7 @@ VOID SectionDumpStructs(
                 &subitems);
 
             StringCchPrintf(szText, PRINTF_BUFFER_LENGTH, TEXT("0x%I64X"), sii.CommittedStackSize);
-            TreeListAddItem(
+            supTreeListAddItem(
                 Context->TreeList,
                 tviRoot,
                 TVIF_TEXT | TVIF_STATE,
@@ -599,7 +399,7 @@ VOID SectionDumpStructs(
         if (bInternalPresent == FALSE)
             __leave;
 
-        tviRoot = TreeListAddItem(
+        tviRoot = supTreeListAddItem(
             Context->TreeList,
             NULL,
             TVIF_TEXT | TVIF_STATE,
@@ -629,11 +429,128 @@ VOID SectionDumpStructs(
             _strcpy(szText, TEXT("Query - OK"));
         }
 
-        StatusBarSetText(
+        supStatusBarSetText(
             Context->StatusBar,
             0,
             szText);
     }
+}
+
+/*
+* VsInfoStringsEnumCallback
+*
+* Purpose:
+*
+* VERSION_INFO enumeration callback.
+*
+*/
+BOOL CALLBACK VsInfoStringsEnumCallback(
+    _In_ PWCHAR key,
+    _In_ PWCHAR value,
+    _In_ PWCHAR langid,
+    _In_opt_ LPVOID cbparam
+)
+{
+    LV_ITEM lvItem;
+    INT itemIndex;
+    HWND hwndList = (HWND)cbparam;
+    WCHAR szLangId[128];
+
+    if (hwndList == 0)
+        return 0;
+
+    RtlSecureZeroMemory(&lvItem, sizeof(lvItem));
+    lvItem.mask = LVIF_TEXT;
+    lvItem.pszText = key;
+    lvItem.iItem = MAXINT;
+    itemIndex = ListView_InsertItem(hwndList, &lvItem);
+
+    lvItem.iSubItem = 1;
+    lvItem.pszText = value;
+    lvItem.iItem = itemIndex;
+    ListView_SetItem(hwndList, &lvItem);
+
+    szLangId[0] = 0;
+    StringCchPrintf(szLangId, _countof(szLangId), TEXT("0x%ws"), langid);
+
+    lvItem.iSubItem = 2;
+    lvItem.pszText = szLangId;
+    lvItem.iItem = itemIndex;
+    ListView_SetItem(hwndList, &lvItem);
+
+    return TRUE;//continue enum
+}
+
+/*
+* VsInfoTabOnInit
+*
+* Purpose:
+*
+* Initialize VersionInfo tab dialog page.
+*
+*/
+VOID VsInfoTabOnInit(
+    _In_ HWND hWndDlg,
+    _In_ GUI_CONTEXT* Context
+)
+{
+    WCHAR szText[100];
+    HWND hwndList = GetDlgItem(hWndDlg, IDC_LIST);
+
+    supAddListViewColumn(hwndList,
+        0,
+        0,
+        0,
+        I_IMAGENONE,
+        LVCFMT_LEFT,
+        TEXT("Name"),
+        120,
+        Context->CurrentDPI);
+
+    supAddListViewColumn(hwndList,
+        1,
+        1,
+        1,
+        I_IMAGENONE,
+        LVCFMT_LEFT,
+        TEXT("Value"),
+        300,
+        Context->CurrentDPI);
+
+    supAddListViewColumn(hwndList,
+        2,
+        2,
+        2,
+        I_IMAGENONE,
+        LVCFMT_LEFT,
+        TEXT("LangId"),
+        100,
+        Context->CurrentDPI);
+
+    ListView_SetExtendedListViewStyle(hwndList,
+        LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP | LVS_EX_DOUBLEBUFFER);
+
+    SetWindowTheme(hwndList, TEXT("Explorer"), NULL);
+
+    if (PEImageEnumVersionFields(
+        Context->SectionAddress,
+        &VsInfoStringsEnumCallback,
+        NULL,
+        (LPVOID)hwndList))
+    {
+        StringCchCopy(szText, _countof(szText), TEXT("Query - OK"));
+    }
+    else {
+        StringCchPrintf(
+            szText,
+            _countof(szText),
+            TEXT("Query Error 0x%lx"), GetLastError());
+    }
+
+    supStatusBarSetText(
+        Context->StatusBar,
+        0,
+        szText);
 }
 
 /*
@@ -787,7 +704,7 @@ VOID StringsTabOnShow(
             ListView_GetItemCount(hwndList),
             cAnsi, cUnicode);
 
-        StatusBarSetText(
+        supStatusBarSetText(
             Context->StatusBar,
             0,
             szBuffer);
@@ -812,7 +729,7 @@ VOID StringsTabOnInit(
 
     if (hwndList) {
 
-        AddListViewColumn(hwndList,
+        supAddListViewColumn(hwndList,
             0,
             0,
             0,
@@ -822,7 +739,7 @@ VOID StringsTabOnInit(
             MAX_PATH,
             Context->CurrentDPI);
 
-        AddListViewColumn(hwndList,
+        supAddListViewColumn(hwndList,
             1,
             1,
             1,
@@ -852,17 +769,20 @@ VOID TabOnInit(
 {
     INT iSel;
 
+    if (Context == NULL)
+        return;
+
     iSel = TabCtrl_GetCurSel(Context->TabHeader->hwndTab);
 
     switch (iSel) {
 
-    case TabSection:
+    case TabIdSection:
         SectionTabOnInit(hWndDlg, Context);
         break;
-    case TabVSInfo:
+    case TabIdVSInfo:
         VsInfoTabOnInit(hWndDlg, Context);
         break;
-    case TabStrings:
+    case TabIdStrings:
         StringsTabOnInit(hWndDlg, Context);
         break;
     default:
@@ -893,7 +813,7 @@ INT_PTR TabOnShow(
 
     switch (iSel) {
 
-    case TabStrings:
+    case TabIdStrings:
         if (fShow)
             StringsTabOnShow(hWndDlg, Context);
         break;
@@ -902,6 +822,72 @@ INT_PTR TabOnShow(
     }
 
     return 1;
+}
+
+/*
+* TabsOnContextMenu
+*
+* Purpose:
+*
+* Tab control WM_CONTEXTMENU handler.
+*
+*/
+VOID TabsOnContextMenu(
+    _In_ HWND hWndDlg
+)
+{
+    INT iSel;
+    POINT pt1;
+    HMENU hMenu;
+    GUI_CONTEXT* Context = GetProp(hWndDlg, T_IMS_PROP);
+
+    if (Context == NULL)
+        return;
+
+    iSel = TabCtrl_GetCurSel(Context->TabHeader->hwndTab);
+
+    switch (iSel) {
+    case TabIdVSInfo:
+    case TabIdStrings:
+        if (GetCursorPos(&pt1)) {
+            hMenu = CreatePopupMenu();
+            if (hMenu) {
+                InsertMenu(hMenu, 0, MF_BYCOMMAND, ID_MENU_LIST_DUMP, T_EXPORTTOFILE);
+                TrackPopupMenu(hMenu, TPM_RIGHTBUTTON | TPM_LEFTALIGN, pt1.x, pt1.y, 0, hWndDlg, NULL);
+                DestroyMenu(hMenu);
+            }
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+VOID TabsDumpList(
+    _In_ HWND hWndDlg
+)
+{
+    INT iSel, iColumns;
+    LPWSTR lpFileName;
+    GUI_CONTEXT* Context = GetProp(hWndDlg, T_IMS_PROP);
+    HWND hwndList = GetDlgItem(hWndDlg, IDC_LIST);
+
+    iSel = TabCtrl_GetCurSel(Context->TabHeader->hwndTab);
+
+    switch (iSel) {
+    case TabIdVSInfo:
+        lpFileName = TEXT("VersionInfo.csv");
+        iColumns = 2;
+        break;
+    case TabIdStrings:
+        lpFileName = TEXT("Strings.csv");
+        iColumns = 1;
+        break;
+    default:
+        return;
+    }
+
+    supListViewExportToFile(lpFileName, hWndDlg, hwndList, iColumns);
 }
 
 /*
@@ -926,6 +912,22 @@ INT_PTR CALLBACK TabsWndProc(
         TabOnInit(hWnd, (GUI_CONTEXT*)lParam);
         break;
 
+    case WM_COMMAND:
+
+        switch (GET_WM_COMMAND_ID(wParam, lParam)) {
+        case ID_MENU_LIST_DUMP:
+            TabsDumpList(hWnd);
+            break;
+        default:
+            break;
+        }
+
+        break;
+
+    case WM_CONTEXTMENU:
+        TabsOnContextMenu(hWnd);
+        break;
+
     case WM_SHOWWINDOW:
         return TabOnShow(hWnd, (wParam != 0));
 
@@ -934,10 +936,10 @@ INT_PTR CALLBACK TabsWndProc(
         break;
 
     default:
-        break;
+        return 0;
     }
 
-    return 0;
+    return 1;
 }
 
 /*
@@ -962,15 +964,15 @@ VOID CALLBACK OnTabResize(
 
     switch (iSel) {
 
-    case TabSection:
+    case TabIdSection:
         Context = (GUI_CONTEXT*)GetProp(TabHeader->hwndDisplay, T_IMS_PROP);
         if (Context) {
             hwndList = Context->TreeList;
         }
         break;
 
-    case TabVSInfo:
-    case TabStrings:
+    case TabIdVSInfo:
+    case TabIdStrings:
         hwndList = GetDlgItem(TabHeader->hwndDisplay, IDC_LIST);
         break;
 

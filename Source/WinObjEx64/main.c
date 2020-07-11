@@ -285,6 +285,7 @@ LRESULT MainWindowHandleWMCommand(
 {
     LPWSTR lpItemText;
     HWND   hwndFocus;
+    DWORD  lvExStyle;
     WORD   ControlId = LOWORD(wParam);
 
     switch (ControlId) {
@@ -350,6 +351,18 @@ LRESULT MainWindowHandleWMCommand(
 
     case ID_VIEW_REFRESH:
         MainWindowOnRefresh();
+        break;
+
+    case ID_DISPLAY_GRID:
+        g_WinObj.ListViewDisplayGrid = !g_WinObj.ListViewDisplayGrid;
+        lvExStyle = ListView_GetExtendedListViewStyle(g_hwndObjectList);
+        if (g_WinObj.ListViewDisplayGrid)
+            lvExStyle |= LVS_EX_GRIDLINES;
+        else
+            lvExStyle &= ~LVS_EX_GRIDLINES;
+
+        ListView_SetExtendedListViewStyle(g_hwndObjectList, lvExStyle);
+
         break;
 
     case ID_EXTRAS_PIPES:
@@ -727,6 +740,7 @@ LRESULT MainWindowHandleWMNotify(
             case ID_OBJECT_PROPERTIES:
             case ID_VIEW_REFRESH:
             case ID_FIND_FINDOBJECT:
+            case ID_DISPLAY_GRID:
                 lpttt->hinst = g_WinObj.hInstance;
                 lpttt->lpszText = MAKEINTRESOURCE(lpttt->hdr.idFrom);
                 lpttt->uFlags |= TTF_DI_SETITEM;
@@ -963,6 +977,8 @@ INT WinObjInitGlobals(
 #endif
 
         g_WinObj.IsWine = IsWine;
+
+        g_WinObj.ListViewDisplayGrid = TRUE;
 
         //
         // Query version info.
@@ -1326,8 +1342,9 @@ UINT WinObjExMain()
         // Initialization of views.
         //
         SendMessage(MainWindow, WM_SIZE, 0, 0);
+
         ListView_SetExtendedListViewStyle(g_hwndObjectList,
-            LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_LABELTIP | LVS_EX_DOUBLEBUFFER);
+            LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP | LVS_EX_DOUBLEBUFFER | LVS_EX_GRIDLINES);
 
         //
         // Apply Window theme.
@@ -1434,7 +1451,7 @@ UINT WinObjExMain()
             g_WinObj.hInstance,
             MAKEINTRESOURCE(IDB_BITMAP1),
             16,
-            7,
+            8,
             CLR_DEFAULT,
             IMAGE_BITMAP,
             LR_CREATEDIBSECTION);

@@ -6,7 +6,6 @@
 #define IDD_TABDLG_VSINFO               103
 #define IDD_TABDLG_STRINGS              105
 #define IDC_LIST                        1002
-#define IDC_PSLIST_TREELIST             1047
 
 // Next default values for new objects
 // 
